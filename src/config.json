@@ -1,0 +1,14 @@
+{
+  "elasticSearchUrl": "http://localhost:9200",
+  "web": {
+    "port": 9495
+  },
+  "internal": {
+    "ssl": {
+      "privateKeyLocation": "/etc/letsencrypt/live/yiff.today/privkey.pem",
+      "certificateLocation": "/etc/letsencrypt/live/yiff.today/cert.pem",
+      "chainLocation": "/etc/letsencrypt/live/yiff.today/chain.pem"
+    }
+  },
+  "secure": false
+}
