@@ -1,0 +1,68 @@
+h1. E621 Advanced Search
+
+This project has been long in the making. I've made this to significantly enhance e621's search syntax, in my opinion.
+
+E621 Advanced Search adds many things e6's base searching lacks, but it comes with trade offs (see [[#caveats|Caveats]]). The main enhancement is the ability to use tag groups with parentheses allowing you to match different groups outside of other groups. 
+
+For example: `duo ( male ~ female ) ( ambiguous_gender ~ gynomorph )` will match posts containing a `male` or `female` and an `ambiguous_gender` or `gynomorph`, this will not match posts that have a `male` and `female`, or `ambiguous_gender` and `gynomorph` since it also searches for `duo`. Of course this relies on tags being correct, so please tag posts!
+
+E621 advanced search also supports groups inside of groups, but this is much more complicated and only for the power users. You can use `~` between groups, as well.
+
+Like so: `duo ( male female ) ~ ( ambiguous_gender gynomorph )` will only match posts with a `male` and a `female`, or a `ambiguous_gender` and a `gynomorph`, and since `duo` was used, we can assume that posts that contain a `male` will also not contain an `ambiguous_gender`, and vice versa (and the other two tags). 
+
+Like e6, you can also use `-` to negate the next tag or group `-female` means the post won't have a `female`, and `-( female male )` means the post won't have a `female` and `male`, but could have either of them by themselves.
+
+Here's an in depth example with many different combinations:
+[section=Example]
+`( a b c ) ~ ( d e f ) means > (a & b & c) OR (d & e & f)
+a b ( c d ) means > a & b & c & d (nothing special)
+-a b c means > not a, b & c
+a b -( c d ) means > a & b, not (c & d) (meaning it can have either c or d, but not both)
+a ~ b c means > (a OR b) & c
+a ~ b ~ c d means > (a OR b OR c) & d
+a ~ b ~ ( d e ) means > (a OR b OR (d and e)) (either a or b or the post has both d and e)
+a ~ b ( -c ~ -e ) means > (a OR b & (not c OR not e)) (meaning a or b AND the post doesn't have c or the post doesn't have e)
+( -a ~ b ) means > (not a) OR b
+a ( b ( c ) ) means > a & b & c
+a ( b ~ ( c e ) ) means > a & (b OR (c and e))`
+
+h3. Notes:
+* Group parentheses should always be preceeded and succeeded by a space unless the parenthesis is the first or last character in the query, or the preceeding character is a `-` (see below)
+** Don't do: `(cat dog)`
+** Do: `( cat dog )`
+* `~` should always be between two tags, it should never be directly next to a tag
+** Don't do: `~cat ~dog`
+** Do: `cat ~ dog`
+* `-` SHOULD be directly preceeding a tag
+** Don't do: `- cat`
+** Do: `-cat` or `-( cat dog )`
+* There is a max complexity, that you probably won't hit, but if you do, just know, I'm not changing it
+** Wildcards are the most complex due to the way they work
+* I'm not sure what the max tags are, it's not something I've hard coded, but you will eventually hit the above complexity cap
+[/section]
+
+h1. Caveats [#caveats]
+When using e621 advanced search, you'll notice a few differences:
+* Blacklisting by uploader username no longer works
+** I don't save user data anywhere. It's impossible to efficiently grab it on the client. So this feature will not work
+*** I recommend blacklisting by uploader id instead anyways as it is better
+* Searching by any username related field no longer works, this goes for approver (`approver:`), uploader (`user:`), etc
+** Use the id versions if they exist. You can add the `!` if you want, but it will be ignored and all versions will be treated as if they were ids
+* Searching for favorites (`fav:`)/votes (`fav:`)/commented on by (`commenter:`)/noted updated by (`noteupdater:`)/deleted by (`deletedby:`) of a specific user is no longer possible
+** Favorites might get added in the future using client side api requests
+* Searching by description (`description:`)/note (`note:`)/delete reason (`delreason:`) is no longer possible
+* Searching for posts pending replacements (`pending_replacements`) is no longer possible
+* Searching for posts in any pools (`inpool:`)/sets (`inset:`) are no longer possible 
+** You can however search by specific pool (`pool:`)/set (`set:`) as posts in these are fetched on the client and OR'd into the search query `( id:1 ~ id:2 ... )` 
+** They aren't in the database export
+* Ordering by `comment_bumped` is no longer possible
+** e621 doesn't return comment bump in the api, and it's not present in the database export
+* Ordering by `changed` is no longer possible
+** `change_seq` is not available in the database export, and fetching all posts to get it is expensive
+** You can order by updated, however, but this will include any post updates
+* File sizes are now exact, use the range operator (`..`) to define a range if necessary
+* `-status:deleted` is assumed in every search unless specifically present somewhere in the group (does not look at sub-groups)
+* All sort values are assumed descending when using `order:`, use `_asc` to sort ascending
+* Sometimes deleted posts are missed and will still show in the posts
+* Currently all date related tags must be in ISO format
+** Eventually I will make a parser to do what e621 does with it's "yester" and "ago" like syntaxes, but at a later date

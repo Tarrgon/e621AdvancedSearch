@@ -32,7 +32,7 @@ class Tokenizer {
         this.index = i + 1
         this.done = this.index >= this.split.length
         return token
-      } else if ((t == "-" || t == "^") && token.length == 0) {
+      } else if ((t == "-") && token.length == 0) {
         this.index = i + 1
         this.done = this.index >= this.split.length
         return t

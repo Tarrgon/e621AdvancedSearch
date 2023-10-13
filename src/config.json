@@ -10,5 +10,5 @@
       "chainLocation": "/etc/letsencrypt/live/yiff.today/chain.pem"
     }
   },
-  "secure": false
+  "secure": true
 }
