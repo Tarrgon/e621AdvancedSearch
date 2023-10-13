@@ -35,6 +35,38 @@ async function getFavorites() {
   })
 }
 
+async function getPostIdsInPool(id) {
+  return new Promise(resolve => {
+    GM.xmlHttpRequest({
+      method: "GET",
+      url: `https://e621.net/pools.json?search[id]=${id}`,
+      onload: function (response) {
+        let data = JSON.parse(response.responseText)
+
+        if (data.length == 0) return resolve([])
+
+        resolve(data[0].post_ids)
+      }
+    })
+  })
+}
+
+async function getPostIdsInSet(id) {
+  return new Promise(resolve => {
+    GM.xmlHttpRequest({
+      method: "GET",
+      url: `https://e621.net/post_sets.json?search[id]=${id}`,
+      onload: function (response) {
+        let data = JSON.parse(response.responseText)
+
+        if (data.post_sets) return resolve([])
+
+        resolve(data[0].post_ids)
+      }
+    })
+  })
+}
+
 function clearPostsContainer() {
   let postsContainer = document.getElementById("posts-container")
 
@@ -201,10 +233,35 @@ ${tags.join(" ")}`
   return article
 }
 
+// Thank you https://stackoverflow.com/questions/33631041/javascript-async-await-in-replace
+async function replaceAsync(str, regex, asyncFn) {
+  const promises = []
+  str.replace(regex, (match, ...args) => {
+    const promise = asyncFn(match, ...args)
+    promises.push(promise)
+  })
+  const data = await Promise.all(promises)
+  return str.replace(regex, () => data.shift())
+}
+
 async function executeSearch(searchText, page = null) {
   searchData.loading = true
 
   await getFavorites()
+
+  searchText = await replaceAsync(searchText, new RegExp(/set:(\d+)/g), async (match, id) => {
+    let ids = await getPostIdsInSet(id)
+    
+    if (ids.length > 0) return `( id:${ids.join(" ~ id:")} )`
+    else return ""
+  })
+
+  searchText = await replaceAsync(searchText, new RegExp(/pool:(\d+)/g), async (match, id) => {
+    let ids = await getPostIdsInPool(id)
+
+    if (ids.length > 0) return `( id:${ids.join(" ~ id:")} )`
+    else return ""
+  })
 
   if (searchData.searchText != searchText) {
     searchData.searchAfter = null
@@ -234,7 +291,7 @@ async function executeSearch(searchText, page = null) {
           searchData.searchAfter = null
         }
 
-        unsafeWindow.history.pushState({ searchAfter: searchData.searchAfter, query: searchText, page }, "", `https://e621.net/posts?q=${searchText}${page != null && searchData.searchAfter == null ? `&page=${page}` : ""}`)
+        unsafeWindow.history.pushState({}, "", `https://e621.net/posts?q=${searchText}${page != null && searchData.searchAfter == null ? `&page=${page}` : ""}`)
 
         resolve()
 

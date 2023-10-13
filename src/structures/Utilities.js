@@ -1324,6 +1324,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
         case "order":
           {
             let split = value.split("_")
+            if (split.length > 2) split = [split.slice(0, -1).join("_"), split[split.length - 1]]
             let sortOrder = split.length == 2 ? split[1] : "desc"
 
             if (!SORTABLE_FIELDS[split[0]]) {
@@ -1376,7 +1377,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
 
             if (!asQuery) return { ignore: true }
 
-            return { isOrderTag: false, asQuery }
+            return { isOrderTag: false, asQuery: { term: asQuery } }
           }
 
         case "general":

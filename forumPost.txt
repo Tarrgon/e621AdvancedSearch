@@ -2,7 +2,15 @@ h1. E621 Advanced Search
 
 This project has been long in the making. I've made this to significantly enhance e621's search syntax, in my opinion.
 
-E621 Advanced Search is primarily a userscript to make searching on e621 better.
+E621 Advanced Search is primarily a "tampermonkey":https://www.tampermonkey.net/ userscript to make searching on e621 better.
+
+h1. Download guide:
+1. Download tampermonkey for whatever browser you're using. 
+** "Chrome":https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo
+** "Firefox":https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/
+** "Edge":https://microsoftedge.microsoft.com/addons/detail/iikmkjmpaadaobahmlepeloendndfphd
+2. "Click here":https://raw.githubusercontent.com/DontTalkToMeThx/e621AdvancedSearch/releases/latest/e621AdvancedSearch.user.js
+3. Click install
 
 E621 Advanced Search adds many things e6's base searching lacks, but it comes with trade offs (see [[#caveats|Caveats]]). The main enhancement is the ability to use tag groups with parentheses allowing you to match different groups outside of other groups. 
 
@@ -62,6 +70,7 @@ When using e621 advanced search, you'll notice a few differences:
 * Ordering by `changed` is no longer possible
 ** `change_seq` is not available in the database export, and fetching all posts to get it is expensive
 ** You can order by updated, however, but this will include any post updates
+* Order tags are always top level regardless of where they appear in the query
 * File sizes are now exact, use the range operator (`..`) to define a range if necessary
 * `-status:deleted` is assumed in every search unless specifically present somewhere in the group (does not look at sub-groups)
 * All sort values are assumed descending when using `order:`, use `_asc` to sort ascending
