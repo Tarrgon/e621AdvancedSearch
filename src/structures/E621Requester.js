@@ -20,29 +20,34 @@ class E621Requester {
 
   makeRequest(path) {
     return new Promise(async (resolve, reject) => {
-      let waitTime = 1050 - (Date.now() - this.lastRequestTime)
-      this.queued++
-      if (waitTime > 0) await wait(waitTime * this.queued)
-      this.lastRequestTime = Date.now()
-      // let headers = {}
-      // if (config.login.username != "" && config.login.apiKey != "") {
-      //   headers.Authorization = `Basic ${btoa(`${config.login.username}:${config.login.apiKey}`)}`
-      // }
+      try {
+        let waitTime = 1050 - (Date.now() - this.lastRequestTime)
+        this.queued++
+        if (waitTime > 0) await wait(waitTime * this.queued)
+        this.lastRequestTime = Date.now()
+        // let headers = {}
+        // if (config.login.username != "" && config.login.apiKey != "") {
+        //   headers.Authorization = `Basic ${btoa(`${config.login.username}:${config.login.apiKey}`)}`
+        // }
 
-      let res = await fetch(E621Requester.BASE_URL + `/${path}&_client=${E621Requester.USER_AGENT}`)
+        let res = await fetch(E621Requester.BASE_URL + `/${path}&_client=${E621Requester.USER_AGENT}`)
 
-      if (res.status == 501) {
-        // Sometimes this can just happen, all this will do is cancel whatever is going on without any extra text
-        return reject({ e621Moment: true })
+        if (res.status == 501) {
+          // Sometimes this can just happen, all this will do is cancel whatever is going on without any extra text
+          return reject({ e621Moment: true })
+        }
+
+        this.queued--
+
+        if (res.ok) {
+          return resolve(await res.json())
+        } else {
+          return reject({ code: res.status, url: E621Requester.BASE_URL + `/${path}&_client=${E621Requester.USER_AGENT}`, text: await res.text() })
+        }
+      } catch (e) {
+        return reject({ code: 500, url: "Fetch failed" })
       }
 
-      this.queued--
-
-      if (res.ok) {
-        return resolve(await res.json())
-      } else {
-        return reject({ code: res.status, url: E621Requester.BASE_URL + `/${path}&_client=${E621Requester.USER_AGENT}`, text: await res.text() })
-      }
     })
   }
 
@@ -75,7 +80,7 @@ class E621Requester {
     } catch (e) {
       console.error(e)
 
-      if (e.e621Moment == true) {
+      if (e.e621Moment == true || code == 500) {
         return false
       }
     }
@@ -157,7 +162,7 @@ class E621Requester {
     } catch (e) {
       console.error(e)
 
-      if (e.e621Moment == true) {
+      if (e.e621Moment == true || code == 500) {
         return false
       }
     }
@@ -219,7 +224,7 @@ class E621Requester {
     } catch (e) {
       console.error(e)
 
-      if (e.e621Moment == true) {
+      if (e.e621Moment == true || code == 500) {
         return false
       }
     }
@@ -251,7 +256,7 @@ class E621Requester {
     } catch (e) {
       console.error(e)
 
-      if (e.e621Moment == true) {
+      if (e.e621Moment == true || code == 500) {
         return false
       }
     }

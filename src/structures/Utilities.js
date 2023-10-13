@@ -1586,7 +1586,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
                 }
               }
             } else if (value == "any") {
-              return { ignore: true }
+              return { statusDeleted: true }
             }
           }
 
@@ -1716,10 +1716,10 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   // a ( b ( c ) ) means > a & b & c
   // a ( b ~ ( c e ) ) means > a & (b OR (c and e))
 
-  async buildQueryFromGroup(group, curQuery = { must: [], should: [], must_not: [] }) {
+  async buildQueryFromGroup(group, hasDeleted = false, curQuery = { must: [], should: [], must_not: [] }) {
     let modifier = MODIFIERS.NONE
 
-    let mentionsDeleted = false
+    let mentionsDeleted = hasDeleted || group.parsedMetaTags.some(t => t.statusDeleted)
 
     for (let i = 0; i < group.tokens.length; i++) {
       let token = group.tokens[i]
@@ -1772,7 +1772,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
 
           let query = { must: [], should: [], must_not: [] }
 
-          this.buildQueryFromGroup(nextGroup, query)
+          this.buildQueryFromGroup(nextGroup, mentionsDeleted, query)
 
           if (modifier == MODIFIERS.NONE) {
             if (!previousNegate) curQuery.must.push({ bool: query })
@@ -1790,7 +1790,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
         } else if (token.startsWith("--")) {
           let parsedMetaTag = group.parsedMetaTags[parseInt(token.slice(2))]
 
-          if (parsedMetaTag.statusDeleted) mentionsDeleted = true
+          if (parsedMetaTag.asQuery == null) continue
 
           if (modifier == MODIFIERS.NONE) {
             if (!previousNegate) curQuery.must.push(parsedMetaTag.asQuery)
@@ -1811,7 +1811,9 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
       if (modifier == MODIFIERS.OR && nextToken != "~") modifier = MODIFIERS.NONE
     }
 
-    if (!mentionsDeleted) curQuery.must_not.push({ term: { isDeleted: true } })
+    if (!mentionsDeleted) {
+      curQuery.must_not.push({ term: { isDeleted: true } })
+    }
 
     if (curQuery.should.length > 0) curQuery.minimum_should_match = 1
 

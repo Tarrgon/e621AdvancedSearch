@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         e621 Advanced Search
 // @namespace    e621advanced.search
-// @version      0.1
+// @version      0.2
 // @description  A much more powerful search syntax for e621
 // @author       DefinitelyNotAFurry4
 // @match        https://e621.net/*
@@ -31,6 +31,22 @@ async function getFavorites() {
       onload: function (response) {
         favorites = JSON.parse(response.responseText).posts.map(p => p.id)
         resolve()
+      }
+    })
+  })
+}
+
+async function getFavoritesOfUser(id) {
+  if (id == "me") return favorites.length > 0 ? favorites : [0]
+
+  return new Promise(resolve => {
+    GM.xmlHttpRequest({
+      method: "GET",
+      url: `https://e621.net/favorites.json?user_id=${id}`,
+      onload: function (response) {
+        if (response.status == 403 || response.status == 404) return resolve([0])
+        let res = JSON.parse(response.responseText).posts.map(p => p.id)
+        resolve(res.length > 0 ? res : [0])
       }
     })
   })
@@ -250,15 +266,22 @@ async function executeSearch(searchText, page = null) {
 
   await getFavorites()
 
-  searchText = await replaceAsync(searchText, new RegExp(/set:(\d+)/g), async (match, id) => {
+  searchText = await replaceAsync(searchText, new RegExp(/set:([^\s]+)/g), async (match, id) => {
     let ids = await getPostIdsInSet(id)
     
     if (ids.length > 0) return `( id:${ids.join(" ~ id:")} )`
     else return ""
   })
 
-  searchText = await replaceAsync(searchText, new RegExp(/pool:(\d+)/g), async (match, id) => {
+  searchText = await replaceAsync(searchText, new RegExp(/pool:([^\s]+)/g), async (match, id) => {
     let ids = await getPostIdsInPool(id)
+
+    if (ids.length > 0) return `( id:${ids.join(" ~ id:")} )`
+    else return ""
+  })
+
+  searchText = await replaceAsync(searchText, new RegExp(/fav:!?([^\s]+)/g), async (match, id) => {
+    let ids = await getFavoritesOfUser(id)
 
     if (ids.length > 0) return `( id:${ids.join(" ~ id:")} )`
     else return ""

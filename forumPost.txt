@@ -61,10 +61,9 @@ When using e621 advanced search, you'll notice a few differences:
 * Blacklisting by uploader username no longer works
 ** I don't save user data anywhere. It's impossible to efficiently grab it on the client. So this feature will not work
 *** I recommend blacklisting by uploader id instead anyways as it is better
-* Searching by any username related field no longer works, this goes for approver (`approver:`), uploader (`user:`), etc
+* Searching by any username related field no longer works, this goes for approver (`approver:`), uploader (`user:`), favorites (`fav:`) etc
 ** Use the id versions if they exist. You can add the `!` if you want, but it will be ignored and all versions will be treated as if they were ids
-* Searching for favorites (`fav:`)/votes (`fav:`)/commented on by (`commenter:`)/noted updated by (`noteupdater:`)/deleted by (`deletedby:`) of a specific user is no longer possible
-** Favorites might get added in the future using client side api requests
+* Searching for votes (`voted:`)/commented on by (`commenter:`)/noted updated by (`noteupdater:`)/deleted by (`deletedby:`) of a specific user is no longer possible
 * Searching by description (`description:`)/note (`note:`)/delete reason (`delreason:`) is no longer possible
 * Searching for posts pending replacements (`pending_replacements`) is no longer possible
 * Searching for posts in any pools (`inpool:`)/sets (`inset:`) are no longer possible 
@@ -77,11 +76,13 @@ When using e621 advanced search, you'll notice a few differences:
 ** You can order by updated, however, but this will include any post updates
 * Order tags are always top level regardless of where they appear in the query
 * File sizes are now exact, use the range operator (`..`) to define a range if necessary
-* `-status:deleted` is assumed in every search unless specifically present somewhere in the group (does not look at sub-groups)
+* `-status:deleted` is assumed in every search unless specifically present somewhere in the group, or parent groups. This does not look at child groups, so if you want deleted posts inside of a group, put it at the top most where it could apply.
 * All sort values are assumed descending when using `order:`, use `_asc` to sort ascending
 * Sometimes deleted posts are missed and will still show in the posts
 * Currently all date related tags must be in ISO format
 ** Eventually I will make a parser to do what e621 does with it's "yester" and "ago" like syntaxes, but at a later date
+
+These caveats are why when using this script, you have the option to also search normally. On the home page and posts page, there is now an additional button that will say "Search normal," when clicked, this will execute a normal search, without going through the extension.
 
 With all that out of the way, let me know what you think! If you find any issues, send them here or on the github. Mainly if some tag doesn't work, or if a post doesn't show up that you expect to, or if a post is showing that shouldn't.
 
