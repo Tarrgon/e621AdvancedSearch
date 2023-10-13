@@ -2,6 +2,8 @@ h1. E621 Advanced Search
 
 This project has been long in the making. I've made this to significantly enhance e621's search syntax, in my opinion.
 
+E621 Advanced Search is primarily a userscript to make searching on e621 better.
+
 E621 Advanced Search adds many things e6's base searching lacks, but it comes with trade offs (see [[#caveats|Caveats]]). The main enhancement is the ability to use tag groups with parentheses allowing you to match different groups outside of other groups. 
 
 For example: `duo ( male ~ female ) ( ambiguous_gender ~ gynomorph )` will match posts containing a `male` or `female` and an `ambiguous_gender` or `gynomorph`, this will not match posts that have a `male` and `female`, or `ambiguous_gender` and `gynomorph` since it also searches for `duo`. Of course this relies on tags being correct, so please tag posts!

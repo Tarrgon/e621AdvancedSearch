@@ -5,10 +5,10 @@
   },
   "internal": {
     "ssl": {
-      "privateKeyLocation": "/etc/letsencrypt/live/yiff.today/privkey.pem",
-      "certificateLocation": "/etc/letsencrypt/live/yiff.today/cert.pem",
-      "chainLocation": "/etc/letsencrypt/live/yiff.today/chain.pem"
+      "privateKeyLocation": "",
+      "certificateLocation": "",
+      "chainLocation": ""
     }
   },
-  "secure": true
+  "secure": false
 }
