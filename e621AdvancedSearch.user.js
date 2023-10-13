@@ -6,10 +6,11 @@
 // @author       DefinitelyNotAFurry4
 // @match        https://e621.net/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=e621.net
+// @updateURL    https://raw.githubusercontent.com/DontTalkToMeThx/e621AdvancedSearch/releases/latest/e621AdvancedSearch.meta.js
+// @downloadURL  https://raw.githubusercontent.com/DontTalkToMeThx/e621AdvancedSearch/releases/latest/e621AdvancedSearch.user.js
 // @grant        GM_addElement
 // @grant        GM.xmlHttpRequest
 // @grant        unsafeWindow
-// @connect      static1.e621.net
 // @connect      search.yiff.today
 // @run-at       document-end
 // ==/UserScript==
