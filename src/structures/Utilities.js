@@ -1820,33 +1820,30 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
 
   async performSearch(query, limit = 50, searchAfter = null) {
     try {
-      if (!query) {
-        return { status: 400, message: "Query not present." }
-      }
-
-      let [success, group] = this.getGroups(query)
-
-      if (!success) {
-        console.log(group)
-        return group
-      }
-
-      // console.log(JSON.stringify(group, null, 4))
-
-      await this.convertToTagIds(group)
-      let databaseQuery = await this.buildQueryFromGroup(group)
-
-      // console.log(`Query: "${query}"`)
+      let success, group
 
       let req = {
-        size: limit, index: "posts", sort: { id: "desc" }, _source_excludes: ["flattenedTags"], query: { bool: databaseQuery }
+        size: limit, index: "posts", sort: { id: "desc" }, _source_excludes: ["flattenedTags"]
       }
 
-      if (group.orderTags.length > 0) {
-        req.sort = group.orderTags
-      }
+      if (query) {
+        [success, group] = this.getGroups(query)
 
-      // console.log(JSON.stringify(req, null, 4))
+        if (!success) {
+          console.log(group)
+          return group
+        }
+
+        await this.convertToTagIds(group)
+
+        let databaseQuery = await this.buildQueryFromGroup(group)
+
+        req.query = { bool: databaseQuery }
+
+        if (group.orderTags.length > 0) {
+          req.sort = group.orderTags
+        }
+      }
 
       if (searchAfter) {
         if (typeof (searchAfter) == "number") {
@@ -1859,11 +1856,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
         }
       }
 
-      // console.log(req)
-
       let res = await this.database.search(req)
-
-      // console.log(JSON.stringify(res))
 
       let posts = res.hits.hits.map(hit => hit._source)
 
