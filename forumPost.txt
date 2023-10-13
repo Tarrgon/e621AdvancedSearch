@@ -12,6 +12,11 @@ h1. Download guide:
 2. "Click here":https://raw.githubusercontent.com/DontTalkToMeThx/e621AdvancedSearch/releases/latest/e621AdvancedSearch.user.js
 3. Click install
 
+h4. RE621
+The userscript is untested with RE621. It might work, it might not. Or it might break some things. Use them together at your own risk.
+
+Note: [b]Due to the way pagination works, I've switched to an infinite scrolling post gallery, rather than actual pages[/b]. This only happens when you search with advanced search.
+
 E621 Advanced Search adds many things e6's base searching lacks, but it comes with trade offs (see [[#caveats|Caveats]]). The main enhancement is the ability to use tag groups with parentheses allowing you to match different groups outside of other groups. 
 
 For example: `duo ( male ~ female ) ( ambiguous_gender ~ gynomorph )` will match posts containing a `male` or `female` and an `ambiguous_gender` or `gynomorph`, this will not match posts that have a `male` and `female`, or `ambiguous_gender` and `gynomorph` since it also searches for `duo`. Of course this relies on tags being correct, so please tag posts!
@@ -77,3 +82,15 @@ When using e621 advanced search, you'll notice a few differences:
 * Sometimes deleted posts are missed and will still show in the posts
 * Currently all date related tags must be in ISO format
 ** Eventually I will make a parser to do what e621 does with it's "yester" and "ago" like syntaxes, but at a later date
+
+With all that out of the way, let me know what you think! If you find any issues, send them here or on the github. Mainly if some tag doesn't work, or if a post doesn't show up that you expect to, or if a post is showing that shouldn't.
+
+Any feedback is welcome!
+
+[section=Other Projects]
+[section=yiff.today - Online e621 slideshow]
+https://yiff.today, an online slideshow viewer for e621 with some pretty nice features, if I do say so myself. Uses this search api and syntax.
+
+Check out the post here: https://e621.net/forum_topics/40665
+[/section]
+[/section]

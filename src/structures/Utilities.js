@@ -1831,12 +1831,12 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
         return group
       }
 
-      console.log(JSON.stringify(group, null, 4))
+      // console.log(JSON.stringify(group, null, 4))
 
       await this.convertToTagIds(group)
       let databaseQuery = await this.buildQueryFromGroup(group)
 
-      console.log(`Query: "${query}"`)
+      // console.log(`Query: "${query}"`)
 
       let req = {
         size: limit, index: "posts", sort: { id: "desc" }, _source_excludes: ["flattenedTags"], query: { bool: databaseQuery }
@@ -1846,7 +1846,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
         req.sort = group.orderTags
       }
 
-      console.log(JSON.stringify(req, null, 4))
+      // console.log(JSON.stringify(req, null, 4))
 
       if (searchAfter) {
         if (typeof (searchAfter) == "number") {
@@ -1859,7 +1859,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
         }
       }
 
-      console.log(req)
+      // console.log(req)
 
       let res = await this.database.search(req)
 
