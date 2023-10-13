@@ -12,6 +12,9 @@ h1. Download guide:
 2. "Click here":https://raw.githubusercontent.com/DontTalkToMeThx/e621AdvancedSearch/releases/latest/e621AdvancedSearch.user.js
 3. Click install
 
+h3. Other Links
+* "GitHub":https://github.com/DontTalkToMeThx/e621AdvancedSearch/tree/main
+
 h4. RE621
 The userscript is untested with RE621. It might work, it might not. Or it might break some things. Use them together at your own risk.
 
@@ -67,7 +70,7 @@ When using e621 advanced search, you'll notice a few differences:
 * Searching by description (`description:`)/note (`note:`)/delete reason (`delreason:`) is no longer possible
 * Searching for posts pending replacements (`pending_replacements`) is no longer possible
 * Searching for posts in any pools (`inpool:`)/sets (`inset:`) are no longer possible 
-** You can however search by specific pool (`pool:`)/set (`set:`) as posts in these are fetched on the client and OR'd into the search query `( id:1 ~ id:2 ... )` 
+** You can however search by specific pool (`pool:`)/set (`set:`) using ids, as in `pool:1` or `set:1` as posts in these are fetched on the client and OR'd into the search query `( id:1 ~ id:2 ... )` 
 ** They aren't in the database export
 * Ordering by `comment_bumped` is no longer possible
 ** e621 doesn't return comment bump in the api, and it's not present in the database export
@@ -84,7 +87,7 @@ When using e621 advanced search, you'll notice a few differences:
 
 These caveats are why when using this script, you have the option to also search normally. On the home page and posts page, there is now an additional button that will say "Search normal," when clicked, this will execute a normal search, without going through the extension.
 
-With all that out of the way, let me know what you think! If you find any issues, send them here or on the github. Mainly if some tag doesn't work, or if a post doesn't show up that you expect to, or if a post is showing that shouldn't.
+With all that out of the way, let me know what you think! If you find any issues, send them here or on the "github":https://github.com/DontTalkToMeThx/e621AdvancedSearch/tree/main. Mainly if some tag doesn't work, or if a post doesn't show up that you expect to, or if a post is showing that shouldn't.
 
 Any feedback is welcome!
 
@@ -94,4 +97,96 @@ https://yiff.today, an online slideshow viewer for e621 with some pretty nice fe
 
 Check out the post here: https://e621.net/forum_topics/40665
 [/section]
+[/section]
+
+[section=Technical doohickies]
+While the code is open source "here":https://github.com/DontTalkToMeThx/e621AdvancedSearch/tree/main, and you can fully run this locally, what if you just want to know what's going on under the hood without having to actually look at the code.
+
+This is a mixed level overview of how this works, including how I get posts, update them, etc.
+
+h1. The beginning
+
+h3. Database exports
+We start off with the database exports. When first starting the system, you won't have any data, and fetching all of it from the api would take hours (latest post id: `4350449`, max of 320 results per page = 4350449/320 = ~13,596 api requests at a rate limit of 1 request per second = 13,596 seconds = ~3.8 hours, not including stuff that's purged from the site, so the actual time will be a bit less) by the time you're done processing it, all of the data will be massively outdated, and you're going to be playing catchup, so instead we just process the database exports.
+
+The exports this system processes are the post exports, tag exports, and tag alias exports. All exports are processed in batches of 10,000 to speed things up.
+
+h5. Tag exports
+The tag export is processed first. This is because the posts export relies on having tags inside the database already to resolve the tag string to tokens. This takes a few seconds at most as it's a small file, and only 3 fields are saved, the id, the tag name itself, and its category.
+
+h5. Post exports
+The post exports takes the longest to process. Not only is it the biggest, but it's also the most complex.
+
+To save storage, post tags are saved as their id, rather than their actual words. This is because numbers are faster to query than searching an entire string for a substring. Instead, we search an array for a number.
+
+However, to save the category of each tag without having to rebuild it, posts tags are saved twice, one time in a flattened array, and the other in a 2d array, where the index is the id of the tag's category. While this is slightly space inefficient, it's worth the time save when rebuilding the tags back to their original api object which is a dictionary of the tag category name to the tag's in that category.
+
+The main time expense is converting tags to their respective token for saving, as each tag has to query the database for its id. I speed this up by maintaining a tag cache of tag name to tag id while processing the post export. This can be further sped up by batch requesting the tag ids from the names rather than getting each one separately, however I didn't want to work that out when I made it, so for now every tag that isn't in the cache is requested by itself, rather than in a batch.
+
+Since parent/child relationships could be out of order, I also have to maintain a hanging relationships database. After the post exports are processed, every post has its children updated, if it has any. This can take a while as it has to find every post that has a parent, check if the parent post exists, and if the parent post doesn't have the child id already in it, and only then insert it. If the parent post doesn't exist, then it has to add the relationship to the hanging relationships, as the post may appear in the futre. Hanging relationships allow parent posts to almost always have their children correct when they are added.
+
+This export takes 20-30 minutes to process fully with the current 4 million posts.
+
+h5. Tag alias exports
+This simple index holds each tag alias' id, antecedent name, and consequent tag id. When a query arrives, all tags are checked for aliases when getting each tag's id.
+
+This export usually takes a few seconds to process.
+
+h3. The update process
+To ensure the database is up to date, every 5 seconds updates are processed. However, this only happens after the previous update is finished. Updates take about 50 seconds to process, resulting in a total of about 55 seconds between updates.
+
+h5. Adding new posts
+The first thing the update does is check for new posts after the latest post in the database. This usually doesn't take too long as there aren't that many posts added per minute. Unknown tags are automatically fetched from the e621 api if they don't exist.
+
+h5. Checking for updates
+There's anywhere between 100-2500 updates most times since the last update happened. To ensure posts are up to date, I check if any commonly changed values are different from what's in the database, or if the updated at value is different, it usually is, but since this requires date parsing, I check right before checking tags.
+
+To ensure we have all updates, I always progress to at least 10 pages of updates. With the 1 request/second rate limit, this takes at minimum 10 seconds to process. If there are updates on the current page, the requester will continue until there are no updates on the page.
+
+h6. Checking for misses
+Checking for misses is nearly identical to the above, but orders by change sequence instead of updated at. Rarely does anything get missed, but it's better safe than sorry.
+
+h5. Adding new tag aliases
+New tag aliases are also added in the exact same way new posts are added.
+
+h3. The API
+Well there had to be some way to get the data from the database via http request. To do this, a very simple api is used. The main api is hosted at https://search.yiff.today.
+
+h5. Converting search text into database query
+This was the hard part. Properly resolving all tag groups, negations, OR's, everything, was difficult. Especially because I had never used this kind of database before (elasticsearch, which I found out after I added it that it was actually what e621 used, so I guess our searches led to the same result lol).
+
+The first step in converting search text to a database query is tokenizing the text and processing each token by itself. This breaks up the daunting task of processing the entire query, to processing a single token.
+
+One of advanced search's biggest features, tag grouping, comes from this one process. When tokenized, we [i]consume[/i] each token one by one and decide what it does to the overall query. For example, if a token is `(`, we know that it opens a new group and all tags going forward are inside that group until the closing `)`. However, since advanced search supports groups inside of groups, we have to ensure that any other `(`'s and `)`'s don't affect this group, but rather create another group inside of the existing one. Groups are inserted as a placeholder value like `__0` where `0` is the group's index within this group.
+
+Most tokens are just inserted as is, but metatags have to be further processed as they are queries by themselves. All tokens are checked for metatags, and if any are contained, I parse the metatag into the identical database query, and insert a placeholder to preserve execution order, metatag placeholders are like `--0` where `0` is the metatag's database query index within the group.
+
+h6. Parsing metatags into database queries
+Metatags are tags relating to the data about the image itself rather than the actual user submitted tags. They allow you to search for things liker uploader id, width, height, ratio, etc. Because they deal with data that aren't tags, I need to process them separately into database queries by themselves.
+
+The metatag parser is really boring and I hate the way that I did it, but it works. First I check to see if the token is actually a metatag, if it isn't it's treated like a regular tag token, otherwise I determine the type of metatag it is and turn it into a database query accordingly. Most metatags are simple queries of equality, but some require actual scripting as not all metadata is directly stored. The metatag parser returns a database query which is inserted into the group's parsed metatags array and the placeholder is inserted into the result to ensure the overall query is built correctly.
+
+Back to the overall query parser, after tokens are processed into their groups and metatags, I need to convert all those new tokens into their respective tag id. Doing this is very simple, I start at the top group, and convert all of its tokens to ids, then I loop over the current group's groups and repeat the process over and over again until there are no groups left. When the entire process is done every group is now an array of tag ids, and placeholders, rather than tag names and placeholders.
+
+Finally we can actually build the database query. For the most part we follow a simple flow chart:
+* Is the current token a number?
+** Treat it as a tag id
+* Is the current token a `-`?
+** Negate the next token
+* Is the next token a `~`, or are we currently resolving a previous OR?
+** Treat it as an OR
+* Does the current token start with `__`?
+** Repeat the process with the group at the index after the `__` in this position
+* Does the current token start with `--`?
+** Insert the metatag's preprocessed database query in this position
+
+Eventually this chain will unwind and we'll be left with a usable database query.
+
+h5. Other query params and body
+While advanced search does support pagination using `page` it is much perferred to send a post request with a body that contains the previous request's `searchAfter` field as `{searchAfter: prevResponseSearchAfter}`. This is because it can paginate through the entire database, where `page` cannot.
+
+You can also change the limit of documents returned with `limit`, there's a hard cap of 320 just for the sake of keeping response times down.
+
+h3. End
+That's basically it, I glossed over some things for the sake of my own sanity, but most of it is in there. If you have any questions about how something works, please let me know! I'll answer anything to the best of my ability.
 [/section]

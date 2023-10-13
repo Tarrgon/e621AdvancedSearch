@@ -1615,6 +1615,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   }
 
   getGroups(tags) {
+    if (tags.length == 0) return [true, null]
     let tokenizer = new Tokenizer(tags)
     let currentGroupIndex = []
     let group = { tokens: [], groups: [], orderTags: [], parsedMetaTags: [] }
@@ -1730,8 +1731,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
       let nextToken = i < group.tokens.length - 1 ? group.tokens[i + 1] : null
 
       if (nextToken == "~") modifier = MODIFIERS.OR
-      else if (nextToken == "^") modifier = MODIFIERS.EXCLUSIVE_OR
-
+      
       if (typeof (token) == "number" || (!token.startsWith("__") && !token.startsWith("--"))) {
         if (modifier == MODIFIERS.NONE) {
           if (!previousNegate) {
@@ -1829,21 +1829,23 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
       }
 
       if (query) {
-        [success, group] = this.getGroups(query)
+        [success, group] = this.getGroups(query.trim())
 
         if (!success) {
           console.log(group)
           return group
         }
 
-        await this.convertToTagIds(group)
+        if (group != null) {
+          await this.convertToTagIds(group)
 
-        let databaseQuery = await this.buildQueryFromGroup(group)
+          let databaseQuery = await this.buildQueryFromGroup(group)
 
-        req.query = { bool: databaseQuery }
+          req.query = { bool: databaseQuery }
 
-        if (group.orderTags.length > 0) {
-          req.sort = group.orderTags
+          if (group.orderTags.length > 0) {
+            req.sort = group.orderTags
+          }
         }
       }
 
