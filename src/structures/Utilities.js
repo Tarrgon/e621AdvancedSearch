@@ -166,14 +166,14 @@ class Utilities {
 
       // Every sunday at 8, get new exports. This ensures we didn't miss anything and allows us to update score, favortie count, and comment count.
       // At the current time, this takes between 15-30 minutes. Updates can't be processed while db exports are being processed.
-      cron.schedule(`0 ${new Date(46800000).getHours()} * * *`, () => {
+      cron.schedule(`0 ${new Date(46800000).getHours()} * * 0`, () => {
         this.fetchAndApplyDatabaseExports()
       })
     } else {
 
       // Every sunday at 8, get new exports. This ensures we didn't miss anything and allows us to update score, favortie count, and comment count.
       // At the current time, this takes between 15-30 minutes. Updates can't be processed while db exports are being processed.
-      cron.schedule(`0 ${new Date(46800000).getHours()} * * *`, () => {
+      cron.schedule(`0 ${new Date(46800000).getHours()} * * 0`, () => {
         this.fetchAndApplyDatabaseExports()
       })
 
@@ -547,14 +547,14 @@ class Utilities {
         let newAlias = tagAliases.splice(index, 1)[0]
 
         if (newAlias.status == "active") {
-          let usedTag = usedTags.find(tag => tag.name == tagAlias.consequent_name)
+          let usedTag = usedTags.find(tag => tag.name == newAlias.consequent_name)
           if (usedTag) {
             newAlias.consequentId = usedTag.id
           } else {
-            let tag = await this.getNewTag(tagAlias.consequent_name)
+            let tag = await this.getNewTag(newAlias.consequent_name)
 
             if (!tag) {
-              console.error(`Unable to get tag: "${tagAlias.consequent_name}"`)
+              console.error(`Unable to get tag: "${newAlias.consequent_name}"`)
               continue
             }
 
@@ -1731,7 +1731,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
       let nextToken = i < group.tokens.length - 1 ? group.tokens[i + 1] : null
 
       if (nextToken == "~") modifier = MODIFIERS.OR
-      
+
       if (typeof (token) == "number" || (!token.startsWith("__") && !token.startsWith("--"))) {
         if (modifier == MODIFIERS.NONE) {
           if (!previousNegate) {
