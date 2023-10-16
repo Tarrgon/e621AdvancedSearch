@@ -80,7 +80,7 @@ class E621Requester {
     } catch (e) {
       console.error(e)
 
-      if (e.e621Moment == true || code == 500) {
+      if (e.e621Moment == true || e.code == 500) {
         return false
       }
     }
@@ -162,7 +162,7 @@ class E621Requester {
     } catch (e) {
       console.error(e)
 
-      if (e.e621Moment == true || code == 500) {
+      if (e.e621Moment == true || e.code == 500) {
         return false
       }
     }
@@ -224,7 +224,7 @@ class E621Requester {
     } catch (e) {
       console.error(e)
 
-      if (e.e621Moment == true || code == 500) {
+      if (e.e621Moment == true || e.code == 500) {
         return false
       }
     }
@@ -256,7 +256,7 @@ class E621Requester {
     } catch (e) {
       console.error(e)
 
-      if (e.e621Moment == true || code == 500) {
+      if (e.e621Moment == true || e.code == 500) {
         return false
       }
     }
