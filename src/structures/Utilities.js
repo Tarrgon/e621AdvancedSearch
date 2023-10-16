@@ -183,22 +183,34 @@ class Utilities {
 
   async updateAll() {
     try {
+      if (this.currentlyUpdating) return
+
+      this.currentlyUpdating = true
       if (this.processingExport) {
-        setTimeout(() => { this.updateAll() }, 5000)
+        setTimeout(() => { 
+          this.currentlyUpdating = false
+          this.updateAll() 
+        }, 5000)
         return
       }
 
       console.log("Beginning update")
       let t = Date.now()
       if (await this.requester.addNewPosts() === false) {
-        setTimeout(() => { this.updateAll() }, 5000)
+        setTimeout(() => { 
+          this.currentlyUpdating = false
+          this.updateAll() 
+        }, 5000)
         return
       }
 
       console.log("New posts added")
 
       if (await this.requester.applyUpdates() === false) {
-        setTimeout(() => { this.updateAll() }, 5000)
+        setTimeout(() => { 
+          this.currentlyUpdating = false
+          this.updateAll() 
+        }, 5000)
         return
       }
 
@@ -206,7 +218,10 @@ class Utilities {
       this.requester.updated = 0
 
       if (await this.requester.checkForMisses() === false) {
-        setTimeout(() => { this.updateAll() }, 5000)
+        setTimeout(() => { 
+          this.currentlyUpdating = false
+          this.updateAll() 
+        }, 5000)
         return
       }
 
@@ -214,7 +229,10 @@ class Utilities {
 
 
       if (await this.requester.addNewTagAliases() === false) {
-        setTimeout(() => { this.updateAll() }, 5000)
+        setTimeout(() => { 
+          this.currentlyUpdating = false
+          this.updateAll() 
+        }, 5000)
         return
       }
 
@@ -228,7 +246,10 @@ class Utilities {
       console.error(e)
     }
 
-    setTimeout(() => { this.updateAll() }, 5000)
+    setTimeout(() => { 
+      this.currentlyUpdating = false
+      this.updateAll() 
+    }, 5000)
   }
 
   async fetchAndApplyDatabaseExports() {
