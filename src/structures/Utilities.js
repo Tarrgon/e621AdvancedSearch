@@ -30,6 +30,7 @@ const SORTABLE_FIELDS = {
 
 const META_TAGS_TO_FIELD_NAMES = {
   order: "order",
+  randseed: "randomSeed",
   user: "uploaderId",
   approver: "approverId",
   id: "id",
@@ -187,9 +188,9 @@ class Utilities {
 
       this.currentlyUpdating = true
       if (this.processingExport) {
-        setTimeout(() => { 
+        setTimeout(() => {
           this.currentlyUpdating = false
-          this.updateAll() 
+          this.updateAll()
         }, 5000)
         return
       }
@@ -197,9 +198,9 @@ class Utilities {
       console.log("Beginning update")
       let t = Date.now()
       if (await this.requester.addNewPosts() === false) {
-        setTimeout(() => { 
+        setTimeout(() => {
           this.currentlyUpdating = false
-          this.updateAll() 
+          this.updateAll()
         }, 5000)
         return
       }
@@ -207,9 +208,9 @@ class Utilities {
       console.log("New posts added")
 
       if (await this.requester.applyUpdates() === false) {
-        setTimeout(() => { 
+        setTimeout(() => {
           this.currentlyUpdating = false
-          this.updateAll() 
+          this.updateAll()
         }, 5000)
         return
       }
@@ -218,9 +219,9 @@ class Utilities {
       this.requester.updated = 0
 
       if (await this.requester.checkForMisses() === false) {
-        setTimeout(() => { 
+        setTimeout(() => {
           this.currentlyUpdating = false
-          this.updateAll() 
+          this.updateAll()
         }, 5000)
         return
       }
@@ -229,9 +230,9 @@ class Utilities {
 
 
       if (await this.requester.addNewTagAliases() === false) {
-        setTimeout(() => { 
+        setTimeout(() => {
           this.currentlyUpdating = false
-          this.updateAll() 
+          this.updateAll()
         }, 5000)
         return
       }
@@ -246,9 +247,9 @@ class Utilities {
       console.error(e)
     }
 
-    setTimeout(() => { 
+    setTimeout(() => {
       this.currentlyUpdating = false
-      this.updateAll() 
+      this.updateAll()
     }, 5000)
   }
 
@@ -1342,8 +1343,20 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
       tagName = META_TAGS_TO_FIELD_NAMES[tagName]
 
       switch (tagName) {
+        case "randomSeed": {
+          let seed = parseInt(value)
+
+          if (isNaN(seed)) return { ignore: true }
+
+          return { isOrderTag: true, randomSeed: seed }
+        }
+
         case "order":
           {
+            if (value == "random") {
+              return { isOrderTag: true, random: true }
+            }
+
             let split = value.split("_")
             if (split.length > 2) split = [split.slice(0, -1).join("_"), split[split.length - 1]]
             let sortOrder = split.length == 2 ? split[1] : "desc"
@@ -1657,7 +1670,13 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
         let parsedMetaTag = this.metaTagParser(token)
         if (parsedMetaTag) {
           if (parsedMetaTag.isOrderTag) {
-            group.orderTags = group.orderTags.concat(parsedMetaTag.asQuery)
+            if (parsedMetaTag.random) {
+              group.orderTags.push({ random: true })
+            } else if (parsedMetaTag.randomSeed !== undefined) {
+              group.orderTags.push({ randomSeed: parsedMetaTag.randomSeed })
+            } else {
+              group.orderTags = group.orderTags.concat(parsedMetaTag.asQuery)
+            }
           } else if (!parsedMetaTag.ignore) {
             curGroup.parsedMetaTags.push(parsedMetaTag)
             curGroup.tokens.push(`--${curGroup.parsedMetaTags.length - 1}`)
@@ -1865,7 +1884,31 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
           req.query = { bool: databaseQuery }
 
           if (group.orderTags.length > 0) {
-            req.sort = group.orderTags
+            let randomIndex = group.orderTags.findIndex(tag => tag.random)
+            let randomSeedIndex = group.orderTags.findIndex(tag => tag.randomSeed !== undefined)
+
+            if (randomIndex == -1) {
+              if (randomSeedIndex != -1) {
+                group.orderTags.splice(randomSeedIndex, 1)
+              }
+              req.sort = group.orderTags
+            } else {
+              console.log("Getting random")
+              let randomScore = {}
+
+              if (randomSeedIndex != -1) {
+                randomScore.seed = group.orderTags[randomSeedIndex].randomSeed
+              }
+
+              req.query = {
+                function_score: {
+                  query: req.query,
+                  random_score: randomScore
+                }
+              }
+
+              delete req.sort
+            }
           }
         }
       }

@@ -236,6 +236,8 @@ class E621Requester {
       console.log(`Adding tag aliases after ${latestTagAliasId}`)
       let data = await this.makeRequest(`tag_aliases.json?limit=100&page=a${latestTagAliasId}`)
 
+      if (data.tag_aliases) return
+
       for (let tagAlias of data) {
         if (tagAlias.status == "active") {
           let existingTagAlias = await this.utilities.getTagAlias(tagAlias.id)
