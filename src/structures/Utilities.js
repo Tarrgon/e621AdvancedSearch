@@ -584,7 +584,7 @@ class Utilities {
 
     date.setUTCHours(7)
     date.setUTCMinutes(44)
-    
+
     let parser = stream.pipe(csv.parse({ columns: true, trim: true }))
 
     let update = async (tagAliases) => {
@@ -2153,7 +2153,49 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
       console.log(e)
       return { status: 500, message: "Internal server error" }
     }
+  }
 
+  async getDirectTagRelationships(tagName) {
+    let tag = await this.getOrAddTag(tagName)
+
+    if (!tag) return {}
+
+    let res = await this.database.search({
+      size: 10000, index: "tagimplications", sort: { id: "desc" }, query: {
+        bool: {
+          should: [
+            {
+              term: {
+                antecedentId: tag.id
+              },
+
+              term: {
+                consequentId: tag.id
+              }
+            }
+          ],
+          minimum_should_match: 1
+        }
+      }
+    })
+
+    let relationships = res.hits.hits.map(hit => hit._source)
+
+    let antecedes = []
+    let consequents = []
+
+    for (let relationship of relationships) {
+      if (relationship.antecedentId == tag.id) {
+        antecedes.push((await this.getTag(relationship.consequentId)).name)
+      } else {
+        consequents.push((await this.getTag(relationship.antecedentId)).name)
+      }
+    }
+
+    return {
+      parents: antecedes,
+      children: consequents
+    }
   }
 }
 

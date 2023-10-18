@@ -27,6 +27,20 @@ async function handle(req, res) {
 router.get("/", handle)
 router.post("/", handle)
 
+router.get("/tagrelationships", async (req, res) => {
+  let tags = req.query.tags.split(" ")
+
+  tags.length = 150
+
+  let relationships = {}
+
+  for (let tag of tags) {
+    relationships[tag] = await utils.getDirectTagRelationships(tag)
+  }
+
+  return res.json(relationships)
+})
+
 module.exports = (u) => {
   utils = u
   return router
