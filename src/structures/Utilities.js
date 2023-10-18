@@ -365,7 +365,7 @@ class Utilities {
 
         let newTag = tags.splice(index, 1)[0]
 
-        if (tag.post_count <= 0 || (tag.category == newTag.category && tag.name == newTag.name)) continue
+        if (newTag.post_count <= 0 || (tag.category == newTag.category && tag.name == newTag.name)) continue
 
         bulk.push({ update: { _id: tag.id.toString() } })
         bulk.push({ doc: { id: newTag.id, name: newTag.name, category: newTag.category } })
