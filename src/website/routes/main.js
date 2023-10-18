@@ -30,12 +30,13 @@ router.post("/", handle)
 router.get("/tagrelationships", async (req, res) => {
   let tags = req.query.tags.split(" ")
 
-  tags.length = 150
+  if (tags.length > 150) tags.length = 150
 
   let relationships = {}
 
   for (let tag of tags) {
-    relationships[tag] = await utils.getDirectTagRelationships(tag)
+    if (tag.trim() == "") continue
+    relationships[tag] = await utils.getDirectTagRelationships(tag.trim())
   }
 
   return res.json(relationships)

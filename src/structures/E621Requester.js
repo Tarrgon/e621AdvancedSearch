@@ -12,42 +12,52 @@ class E621Requester {
   static USER_AGENT = "E621 Advanced Search/1.0 (by DefinitelyNotAFurry4)"
 
   constructor(utils) {
-    this.lastRequestTime = 0
-    this.queued = 0
+    this.queue = []
     this.utilities = utils
     this.updated = 0
   }
 
-  makeRequest(path) {
-    return new Promise(async (resolve, reject) => {
-      try {
-        let waitTime = 1050 - (Date.now() - this.lastRequestTime)
-        this.queued++
-        if (waitTime > 0) await wait(waitTime * this.queued)
-        this.lastRequestTime = Date.now()
-        // let headers = {}
-        // if (config.login.username != "" && config.login.apiKey != "") {
-        //   headers.Authorization = `Basic ${btoa(`${config.login.username}:${config.login.apiKey}`)}`
-        // }
+  async processQueue() {
+    let item = this.queue.shift()
+    try {
+      // let headers = {}
+      // if (config.login.username != "" && config.login.apiKey != "") {
+      //   headers.Authorization = `Basic ${btoa(`${config.login.username}:${config.login.apiKey}`)}`
+      // }
 
-        let res = await fetch(E621Requester.BASE_URL + `/${path}&_client=${E621Requester.USER_AGENT}`)
+      let res = await fetch(E621Requester.BASE_URL + `/${item.url}&_client=${E621Requester.USER_AGENT}`)
 
-        if (res.status == 501) {
-          // Sometimes this can just happen, all this will do is cancel whatever is going on without any extra text
-          return reject({ e621Moment: true })
-        }
-
-        this.queued--
-
-        if (res.ok) {
-          return resolve(await res.json())
-        } else {
-          return reject({ code: res.status, url: E621Requester.BASE_URL + `/${path}&_client=${E621Requester.USER_AGENT}`, text: await res.text() })
-        }
-      } catch (e) {
-        return reject({ code: 500, url: "Fetch failed" })
+      if (res.status == 501) {
+        // Sometimes this can just happen, all this will do is cancel whatever is going on without any extra text
+        item.onReject({ e621Moment: true })
+      } else if (res.ok) {
+        item.onResolve(await res.json())
+      } else {
+        item.onReject({ code: res.status, url: E621Requester.BASE_URL + `/${path}&_client=${E621Requester.USER_AGENT}`, text: await res.text() })
       }
+    } catch (e) {
+      item.onReject({ code: 500, url: "Fetch failed" })
+    }
 
+    if (this.queue.length > 0) {
+      await wait(1050)
+      this.processQueue()
+    }
+  }
+
+  addUrlToQueue(url) {
+    return new Promise((resolve, reject) => {
+      this.queue.push({
+        url, onResolve: function () {
+          resolve(...arguments)
+        }, onReject: function () {
+          reject(...arguments)
+        }
+      })
+
+      if (this.queue.length == 1) {
+        this.processQueue()
+      }
     })
   }
 
@@ -55,7 +65,7 @@ class E621Requester {
     try {
       let latestPostId = await this.utilities.getLatestPostId()
       console.log(`Adding posts after ${latestPostId}`)
-      let data = await this.makeRequest(`posts.json?tags=status:anylimit=320&page=a${latestPostId}`)
+      let data = await this.addUrlToQueue(`posts.json?tags=status:anylimit=320&page=a${latestPostId}`)
 
       for (let post of data.posts) {
         if (!post.hasOwnProperty("id") ||
@@ -88,7 +98,7 @@ class E621Requester {
 
   async checkForMisses(page = 1, endPageWithNoUpdates = 10) {
     try {
-      let data = await this.makeRequest(`posts.json?tags=order:change%20status:any&limit=320&page=${page}`)
+      let data = await this.addUrlToQueue(`posts.json?tags=order:change%20status:any&limit=320&page=${page}`)
 
       let anyUpdated = page < endPageWithNoUpdates
 
@@ -172,7 +182,7 @@ class E621Requester {
     try {
       let anyUpdated = page < endPageWithNoUpdates
 
-      let data = await this.makeRequest(`posts.json?tags=order:updated_desc%20status:any&limit=320&page=${page}`)
+      let data = await this.addUrlToQueue(`posts.json?tags=order:updated_desc%20status:any&limit=320&page=${page}`)
 
       let ids = []
 
@@ -232,7 +242,7 @@ class E621Requester {
 
   async updateTagAliases(page = 1, endPageWithNoUpdates = 10) {
     try {
-      let data = await this.makeRequest(`tag_aliases.json?limit=100&%5Border%5D=updated_at&page=${page}`)
+      let data = await this.addUrlToQueue(`tag_aliases.json?limit=100&%5Border%5D=updated_at&page=${page}`)
 
       let anyUpdated = page < endPageWithNoUpdates
 
@@ -282,7 +292,7 @@ class E621Requester {
 
   async updateTagImplications(page = 1, endPageWithNoUpdates = 10) {
     try {
-      let data = await this.makeRequest(`tag_implications.json?limit=100&%5Border%5D=updated_at&page=${page}`)
+      let data = await this.addUrlToQueue(`tag_implications.json?limit=100&%5Border%5D=updated_at&page=${page}`)
 
       let anyUpdated = page < endPageWithNoUpdates
 
@@ -335,7 +345,7 @@ class E621Requester {
       console.log(`Getting new tag: "${tagName}"`)
       // let d = await this.utilities.getTagByName(tagName)
       // if (d) return d
-      let data = await this.makeRequest(`tags.json?limit=1&search[name_matches]=${tagName}`)
+      let data = await this.addUrlToQueue(`tags.json?limit=1&search[name_matches]=${tagName}`)
       if (data && data[0]) {
         return { id: data[0].id, name: data[0].name, category: data[0].category }
       } else {

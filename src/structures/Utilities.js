@@ -1296,11 +1296,20 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   }
 
   async convertPostTagIdsToTags(post) {
-    let usedTags = await this.getTagsWithIds(post.tags.flat())
+    let asFlat = post.tags.flat()
+    let usedTags = await this.getTagsWithIds(asFlat)
 
     for (let tagGroup of post.tags) {
       for (let i = 0; i < tagGroup.length; i++) {
-        tagGroup[i] = usedTags.find(t => t.id == tagGroup[i]).name
+        try {
+          tagGroup[i] = usedTags.find(t => t.id == tagGroup[i]).name
+        } catch (e) {
+          console.error("Error converting tags ids to tags")
+          console.error(post)
+          console.error(asFlat)
+          console.error(usedTags)
+          console.error(`Tag: ${tagGroup[i]}`)
+        } 
       }
     }
   }
@@ -2186,9 +2195,9 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
 
     for (let relationship of relationships) {
       if (relationship.antecedentId == tag.id) {
-        antecedes.push((await this.getTag(relationship.consequentId)).name)
+        antecedes.push((await this.getTag(relationship.consequentId)))
       } else {
-        consequents.push((await this.getTag(relationship.antecedentId)).name)
+        consequents.push((await this.getTag(relationship.antecedentId)))
       }
     }
 
