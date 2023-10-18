@@ -1309,7 +1309,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
           console.error(asFlat)
           console.error(usedTags)
           console.error(`Tag: ${tagGroup[i]}`)
-        } 
+        }
       }
     }
   }
@@ -2177,7 +2177,8 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
               term: {
                 antecedentId: tag.id
               },
-
+            },
+            {
               term: {
                 consequentId: tag.id
               }
@@ -2202,6 +2203,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
     }
 
     return {
+      thisTag: tag,
       parents: antecedes,
       children: consequents
     }
