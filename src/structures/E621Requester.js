@@ -232,7 +232,6 @@ class E621Requester {
 
   async updateTagAliases(page = 1, endPageWithNoUpdates = 10) {
     try {
-      console.log(`Updating tag aliases`)
       let data = await this.makeRequest(`tag_aliases.json?limit=100&%5Border%5D=updated_at&page=${page}`)
 
       let anyUpdated = page < endPageWithNoUpdates
@@ -277,7 +276,6 @@ class E621Requester {
 
   async updateTagImplications(page = 1, endPageWithNoUpdates = 10) {
     try {
-      console.log(`Updating tag implications`)
       let data = await this.makeRequest(`tag_implications.json?limit=100&%5Border%5D=updated_at&page=${page}`)
 
       let anyUpdated = page < endPageWithNoUpdates
