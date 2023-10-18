@@ -293,9 +293,9 @@ class Utilities {
 
     let startTime = Date.now()
 
-    // let postExport = await this.requester.getDatabaseExport(`posts-${dateString}.csv.gz`)
-    // let tagExport = await this.requester.getDatabaseExport(`tags-${dateString}.csv.gz`)
-    // let tagAliasExport = await this.requester.getDatabaseExport(`tag_aliases-${dateString}.csv.gz`)
+    let postExport = await this.requester.getDatabaseExport(`posts-${dateString}.csv.gz`)
+    let tagExport = await this.requester.getDatabaseExport(`tags-${dateString}.csv.gz`)
+    let tagAliasExport = await this.requester.getDatabaseExport(`tag_aliases-${dateString}.csv.gz`)
     let tagImplicationExport = await this.requester.getDatabaseExport(`tag_implications-${dateString}.csv.gz`)
 
     this.tagCache = {}
@@ -715,7 +715,7 @@ class Utilities {
 
         if (newImplication.status == "active") {
           let child = usedTags.find(tag => tag.name == tagImplication.antecedent_name) || (async () => {
-            let t = await this.getOrAddTag(tagImplication.antecedent_name)
+            let t = await this.getOrAddTag(newImplication.antecedent_name)
             if (t) {
               usedTags.push(t)
             }
@@ -723,7 +723,7 @@ class Utilities {
           })()
 
           let parent = usedTags.find(tag => tag.name == tagImplication.consequent_name) || (async () => {
-            let t = await this.getOrAddTag(tagImplication.consequent_name)
+            let t = await this.getOrAddTag(newImplication.consequent_name)
             if (t) {
               usedTags.push(t)
             }
@@ -808,7 +808,6 @@ class Utilities {
     for await (let data of parser) {
       if (tagImplications.length >= 10000) {
         await update(tagImplications)
-        return
       }
 
       data.id = parseInt(data.id)
