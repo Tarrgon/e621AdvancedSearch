@@ -301,34 +301,34 @@ class Utilities {
     this.tagCache = {}
 
     let time = Date.now()
-    // await this.processTagExport(tagExport)
-    // tagExport.destroy()
-    // fs.rmSync(`tags-${dateString}.csv`)
-    // console.log(`Tag export processed in ${Date.now() - time}ms`)
+    await this.processTagExport(tagExport)
+    tagExport.destroy()
+    fs.rmSync(`tags-${dateString}.csv`)
+    console.log(`Tag export processed in ${Date.now() - time}ms`)
 
-    // await this.database.indices.refresh({ index: "tags" })
+    await this.database.indices.refresh({ index: "tags" })
 
-    // time = Date.now()
-    // await this.processPostExport(postExport)
-    // postExport.destroy()
-    // fs.rmSync(`posts-${dateString}.csv`)
-    // console.log(`Post export processed in ${Date.now() - time}ms`)
+    time = Date.now()
+    await this.processPostExport(postExport)
+    postExport.destroy()
+    fs.rmSync(`posts-${dateString}.csv`)
+    console.log(`Post export processed in ${Date.now() - time}ms`)
 
-    // await this.database.indices.refresh({ index: "posts" })
+    await this.database.indices.refresh({ index: "posts" })
 
-    // time = Date.now()
-    // await this.updateAllPostRelationships()
-    // console.log(`Post relationships updated in ${Date.now() - time}ms`)
+    time = Date.now()
+    await this.updateAllPostRelationships()
+    console.log(`Post relationships updated in ${Date.now() - time}ms`)
 
-    // await this.database.indices.refresh({ index: "posts" })
+    await this.database.indices.refresh({ index: "posts" })
 
-    // time = Date.now()
-    // await this.processTagAliasExport(tagAliasExport)
-    // tagAliasExport.destroy()
-    // fs.rmSync(`tag_aliases-${dateString}.csv`)
-    // console.log(`Tag alias export processed in ${Date.now() - time}ms`)
+    time = Date.now()
+    await this.processTagAliasExport(tagAliasExport)
+    tagAliasExport.destroy()
+    fs.rmSync(`tag_aliases-${dateString}.csv`)
+    console.log(`Tag alias export processed in ${Date.now() - time}ms`)
 
-    // await this.database.indices.refresh({ index: "tagaliases" })
+    await this.database.indices.refresh({ index: "tagaliases" })
 
     time = Date.now()
     await this.processTagImplicationExport(tagImplicationExport)

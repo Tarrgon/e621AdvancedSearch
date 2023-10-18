@@ -235,18 +235,18 @@ class E621Requester {
       console.log(`Updating tag aliases`)
       let data = await this.makeRequest(`tag_aliases.json?limit=100&%5Border%5D=updated_at&page=${page}`)
 
-      let keepGoing = true
+      let anyUpdated = false
 
       if (data.tag_aliases) return
 
       for (let tagAlias of data) {
         let existingTagAlias = await this.utilities.getTagAlias(tagAlias.id)
 
-        // If we get to a tag that is the same, we don't need to update further
         if (existingTagAlias && existingTagAlias.updatedAt >= new Date(tagAlias.updated_at)) {
-          keepGoing = false
-          break
+          continue
         }
+
+        anyUpdated = true
 
         if (tagAlias.status == "active") {
           let usedTag = await this.utilities.getOrAddTag(tagAlias.consequent_name)
@@ -265,7 +265,7 @@ class E621Requester {
         }
       }
 
-      if (keepGoing) await this.updateTagAliases(++page)
+      if (anyUpdated && page < 750) await this.updateTagAliases(++page)
     } catch (e) {
       console.error(e)
 
@@ -280,18 +280,18 @@ class E621Requester {
       console.log(`Updating tag implications`)
       let data = await this.makeRequest(`tag_implications.json?limit=100&%5Border%5D=updated_at&page=${page}`)
 
-      let keepGoing = true
+      let anyUpdated = false
 
       if (data.tag_implications) return
 
       for (let tagImplication of data) {
         let existingTagImplication = await this.utilities.getTagImplication(tagImplication.id)
 
-        // If we get to a tag that is the same, we don't need to update further
         if (existingTagImplication && existingTagImplication.updatedAt >= new Date(tagImplication.updated_at)) {
-          keepGoing = false
-          break
+          continue
         }
+
+        anyUpdated = true
 
         if (tagImplication.status == "active") {
           let child = await this.utilities.getOrAddTag(tagImplication.antecedent_name)
@@ -311,7 +311,7 @@ class E621Requester {
         }
       }
 
-      if (keepGoing) await this.updateTagImplications(++page)
+      if (anyUpdated && page < 750) await this.updateTagImplications(++page)
     } catch (e) {
       console.error(e)
 
