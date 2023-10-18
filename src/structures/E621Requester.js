@@ -242,12 +242,12 @@ class E621Requester {
         let existingTagAlias = await this.utilities.getTagAlias(tagAlias.id)
 
         if (existingTagAlias && existingTagAlias.updatedAt >= new Date(tagAlias.updated_at)) {
+          console.log("Skipping up to date")
           continue
         }
 
-        anyUpdated = true
-
         if (tagAlias.status == "active") {
+          anyUpdated = true
           let usedTag = await this.utilities.getOrAddTag(tagAlias.consequent_name)
 
           if (!usedTag) {
@@ -255,10 +255,16 @@ class E621Requester {
             continue
           }
 
-          if (!existingTagAlias) await this.utilities.addTagAlias({ id: tagAlias.id, antecedentName: tagAlias.antecedent_name, consequentId: usedTag.id, updatedAt: new Date(tagAlias.updated_at) })
-          else if (existingTagAlias.antecedentName != tagAlias.antecedent_name || existingTagAlias.consequentId != usedTag.id) await this.utilities.updateTagAlias({ id: tagAlias.id, antecedentName: tagAlias.antecedent_name, consequentId: usedTag.id, updatedAt: new Date(tagAlias.updated_at) })
+          if (!existingTagAlias) {
+            anyUpdated = true
+            await this.utilities.addTagAlias({ id: tagAlias.id, antecedentName: tagAlias.antecedent_name, consequentId: usedTag.id, updatedAt: new Date(tagAlias.updated_at) })
+          } else if (existingTagAlias.antecedentName != tagAlias.antecedent_name || existingTagAlias.consequentId != usedTag.id) {
+            anyUpdated = true
+            await this.utilities.updateTagAlias({ id: tagAlias.id, antecedentName: tagAlias.antecedent_name, consequentId: usedTag.id, updatedAt: new Date(tagAlias.updated_at) })
+          }
         } else {
           if (existingTagAlias) {
+            anyUpdated = true
             await this.utilities.deleteTagAlias(tagAlias.id)
           }
         }
@@ -289,9 +295,8 @@ class E621Requester {
           continue
         }
 
-        anyUpdated = true
-
         if (tagImplication.status == "active") {
+
           let child = await this.utilities.getOrAddTag(tagImplication.antecedent_name)
           let parent = await this.utilities.getOrAddTag(tagImplication.consequent_name)
 
@@ -300,10 +305,16 @@ class E621Requester {
             continue
           }
 
-          if (!existingTagImplication) await this.utilities.addTagImplication({ id: tagImplication.id, antecedentId: child.id, consequentId: parent.id, updatedAt: new Date(tagImplication.updated_at) })
-          else if (existingTagImplication.antecedentId != child.id || existingTagImplication.consequentId != parent.id) await this.utilities.updateTagImplication({ id: tagImplication.id, antecedentId: child.id, consequentId: parent.id, updatedAt: new Date(tagImplication.updated_at) })
+          if (!existingTagImplication) {
+            anyUpdated = true
+            await this.utilities.addTagImplication({ id: tagImplication.id, antecedentId: child.id, consequentId: parent.id, updatedAt: new Date(tagImplication.updated_at) })
+          } else if (existingTagImplication.antecedentId != child.id || existingTagImplication.consequentId != parent.id) {
+            anyUpdated = true
+            await this.utilities.updateTagImplication({ id: tagImplication.id, antecedentId: child.id, consequentId: parent.id, updatedAt: new Date(tagImplication.updated_at) })
+          }
         } else {
           if (existingTagImplication) {
+            anyUpdated = true
             await this.utilities.deleteTagImplication(tagImplication.id)
           }
         }
