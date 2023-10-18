@@ -235,12 +235,20 @@ class E621Requester {
       console.log(`Updating tag aliases`)
       let data = await this.makeRequest(`tag_aliases.json?limit=100&%5Border%5D=updated_at&page=${page}`)
 
+      let keepGoing = true
+
       if (data.tag_aliases) return
 
       for (let tagAlias of data) {
-        if (tagAlias.status == "active") {
-          let existingTagAlias = await this.utilities.getTagAlias(tagAlias.id)
+        let existingTagAlias = await this.utilities.getTagAlias(tagAlias.id)
 
+        // If we get to a tag that is the same, we don't need to update further
+        if (existingTagAlias && existingTagAlias.updatedAt >= new Date(tagAlias.updated_at)) {
+          keepGoing = false
+          break
+        }
+
+        if (tagAlias.status == "active") {
           let usedTag = await this.utilities.getOrAddTag(tagAlias.consequent_name)
 
           if (!usedTag) {
@@ -248,12 +256,16 @@ class E621Requester {
             continue
           }
 
-          if (!existingTagAlias) await this.utilities.addTagAlias({ id: tagAlias.id, antecedentName: tagAlias.antecedent_name, consequentId: usedTag.id })
-          else if (existingTagAlias.antecedentName != tagAlias.antecedent_name || existingTagAlias.consequentId != usedTag.id) await this.utilities.updateTagAlias({ id: tagAlias.id, antecedentName: tagAlias.antecedent_name, consequentId: usedTag.id })
+          if (!existingTagAlias) await this.utilities.addTagAlias({ id: tagAlias.id, antecedentName: tagAlias.antecedent_name, consequentId: usedTag.id, updatedAt: new Date(tagAlias.updated_at) })
+          else if (existingTagAlias.antecedentName != tagAlias.antecedent_name || existingTagAlias.consequentId != usedTag.id) await this.utilities.updateTagAlias({ id: tagAlias.id, antecedentName: tagAlias.antecedent_name, consequentId: usedTag.id, updatedAt: new Date(tagAlias.updated_at) })
+        } else {
+          if (existingTagAlias) {
+            await this.utilities.deleteTagAlias(tagAlias.id)
+          }
         }
       }
 
-      if (data.length >= 100) await this.updateTagAliases(++page)
+      if (keepGoing) await this.updateTagAliases(++page)
     } catch (e) {
       console.error(e)
 
@@ -268,12 +280,20 @@ class E621Requester {
       console.log(`Updating tag implications`)
       let data = await this.makeRequest(`tag_implications.json?limit=100&%5Border%5D=updated_at&page=${page}`)
 
+      let keepGoing = true
+
       if (data.tag_implications) return
 
       for (let tagImplication of data) {
-        if (tagImplication.status == "active") {
-          let existingTagImplication = await this.utilities.getTagImplication(tagImplication.id)
+        let existingTagImplication = await this.utilities.getTagImplication(tagImplication.id)
 
+        // If we get to a tag that is the same, we don't need to update further
+        if (existingTagImplication && existingTagImplication.updatedAt >= new Date(tagImplication.updated_at)) {
+          keepGoing = false
+          break
+        }
+
+        if (tagImplication.status == "active") {
           let child = await this.utilities.getOrAddTag(tagImplication.antecedent_name)
           let parent = await this.utilities.getOrAddTag(tagImplication.consequent_name)
 
@@ -282,12 +302,16 @@ class E621Requester {
             continue
           }
 
-          if (!existingTagImplication) await this.utilities.addTagImplication({ id: tagImplication.id, antecedentId: child.id, consequentId: parent.id })
-          else if (existingTagImplication.antecedentId != child.id || existingTagImplication.consequentId != parent.id) await this.utilities.updateTagImplication({ id: tagImplication.id, antecedentId: child.id, consequentId: parent.id })
+          if (!existingTagImplication) await this.utilities.addTagImplication({ id: tagImplication.id, antecedentId: child.id, consequentId: parent.id, updatedAt: new Date(tagImplication.updated_at) })
+          else if (existingTagImplication.antecedentId != child.id || existingTagImplication.consequentId != parent.id) await this.utilities.updateTagImplication({ id: tagImplication.id, antecedentId: child.id, consequentId: parent.id, updatedAt: new Date(tagImplication.updated_at) })
+        } else {
+          if (existingTagImplication) {
+            await this.utilities.deleteTagImplication(tagImplication.id)
+          }
         }
       }
 
-      if (data.length >= 100) await this.updateTagImplications(++page)
+      if (keepGoing) await this.updateTagImplications(++page)
     } catch (e) {
       console.error(e)
 

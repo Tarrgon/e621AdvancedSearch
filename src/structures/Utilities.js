@@ -172,7 +172,7 @@ class Utilities {
     }
 
     // This will forcefully apply database exports tomorrow. Used to rebuild the database without getting too far behind on updates.
-    // cron.schedule(`0 ${new Date(46800000).getHours()} * * *`, () => {
+    // cron.schedule(`0 ${new Date(36000000).getHours()} * * *`, () => {
     //   this.fetchAndApplyDatabaseExports()
     // })
     // return
@@ -180,16 +180,16 @@ class Utilities {
     if (needExports) {
       await this.fetchAndApplyDatabaseExports()
 
-      // Every sunday at 8, get new exports. This ensures we didn't miss anything and allows us to update score, favortie count, and comment count.
+      // Every sunday at 5, get new exports. This ensures we didn't miss anything and allows us to update score, favortie count, and comment count.
       // At the current time, this takes between 15-30 minutes. Updates can't be processed while db exports are being processed.
-      cron.schedule(`0 ${new Date(46800000).getHours()} * * 0`, () => {
+      cron.schedule(`0 ${new Date(36000000).getHours()} * * 0`, () => {
         this.fetchAndApplyDatabaseExports()
       })
     } else {
 
-      // Every sunday at 8, get new exports. This ensures we didn't miss anything and allows us to update score, favortie count, and comment count.
+      // Every sunday at 5, get new exports. This ensures we didn't miss anything and allows us to update score, favortie count, and comment count.
       // At the current time, this takes between 15-30 minutes. Updates can't be processed while db exports are being processed.
-      cron.schedule(`0 ${new Date(46800000).getHours()} * * 0`, () => {
+      cron.schedule(`0 ${new Date(36000000).getHours()} * * 0`, () => {
         this.fetchAndApplyDatabaseExports()
       })
 
@@ -283,7 +283,7 @@ class Utilities {
     this.processingExport = true
     let date = new Date()
 
-    if (date.getUTCHours() < 11 || (date.getUTCHours() == 11 && date.getUTCMinutes() < 50)) {
+    if (date.getUTCHours() < 7 || (date.getUTCHours() == 8 && date.getUTCMinutes() < 50)) {
       date = new Date(date.getTime() - 86400000)
     }
 
@@ -293,42 +293,42 @@ class Utilities {
 
     let startTime = Date.now()
 
-    let postExport = await this.requester.getDatabaseExport(`posts-${dateString}.csv.gz`)
-    let tagExport = await this.requester.getDatabaseExport(`tags-${dateString}.csv.gz`)
-    let tagAliasExport = await this.requester.getDatabaseExport(`tag_aliases-${dateString}.csv.gz`)
+    // let postExport = await this.requester.getDatabaseExport(`posts-${dateString}.csv.gz`)
+    // let tagExport = await this.requester.getDatabaseExport(`tags-${dateString}.csv.gz`)
+    // let tagAliasExport = await this.requester.getDatabaseExport(`tag_aliases-${dateString}.csv.gz`)
     let tagImplicationExport = await this.requester.getDatabaseExport(`tag_implications-${dateString}.csv.gz`)
 
     this.tagCache = {}
 
     let time = Date.now()
-    await this.processTagExport(tagExport)
-    tagExport.destroy()
-    fs.rmSync(`tags-${dateString}.csv`)
-    console.log(`Tag export processed in ${Date.now() - time}ms`)
+    // await this.processTagExport(tagExport)
+    // tagExport.destroy()
+    // fs.rmSync(`tags-${dateString}.csv`)
+    // console.log(`Tag export processed in ${Date.now() - time}ms`)
 
-    await this.database.indices.refresh({ index: "tags" })
+    // await this.database.indices.refresh({ index: "tags" })
 
-    time = Date.now()
-    await this.processPostExport(postExport)
-    postExport.destroy()
-    fs.rmSync(`posts-${dateString}.csv`)
-    console.log(`Post export processed in ${Date.now() - time}ms`)
+    // time = Date.now()
+    // await this.processPostExport(postExport)
+    // postExport.destroy()
+    // fs.rmSync(`posts-${dateString}.csv`)
+    // console.log(`Post export processed in ${Date.now() - time}ms`)
 
-    await this.database.indices.refresh({ index: "posts" })
+    // await this.database.indices.refresh({ index: "posts" })
 
-    time = Date.now()
-    await this.updateAllPostRelationships()
-    console.log(`Post relationships updated in ${Date.now() - time}ms`)
+    // time = Date.now()
+    // await this.updateAllPostRelationships()
+    // console.log(`Post relationships updated in ${Date.now() - time}ms`)
 
-    await this.database.indices.refresh({ index: "posts" })
+    // await this.database.indices.refresh({ index: "posts" })
 
-    time = Date.now()
-    await this.processTagAliasExport(tagAliasExport)
-    tagAliasExport.destroy()
-    fs.rmSync(`tag_aliases-${dateString}.csv`)
-    console.log(`Tag alias export processed in ${Date.now() - time}ms`)
+    // time = Date.now()
+    // await this.processTagAliasExport(tagAliasExport)
+    // tagAliasExport.destroy()
+    // fs.rmSync(`tag_aliases-${dateString}.csv`)
+    // console.log(`Tag alias export processed in ${Date.now() - time}ms`)
 
-    await this.database.indices.refresh({ index: "tagaliases" })
+    // await this.database.indices.refresh({ index: "tagaliases" })
 
     time = Date.now()
     await this.processTagImplicationExport(tagImplicationExport)
@@ -357,15 +357,15 @@ class Utilities {
 
       let bulk = []
 
-      let cursor = await this.getTagsWithIds(tags.map(tag => tag.id.toString()))
+      let cursor = await this.getTagsWithNames(tags.map(tag => tag.name.toString()))
 
       for (let tag of cursor) {
-        let index = tags.findIndex(t => t.id == tag.id)
+        let index = tags.findIndex(t => t.name == tag.name)
         if (index == -1) continue
 
         let newTag = tags.splice(index, 1)[0]
 
-        if (tag.category == newTag.category && tag.name == newTag.name) continue
+        if (tag.post_count <= 0 || (tag.category == newTag.category && tag.name == newTag.name)) continue
 
         bulk.push({ update: { _id: tag.id.toString() } })
         bulk.push({ doc: { id: newTag.id, name: newTag.name, category: newTag.category } })
@@ -396,11 +396,10 @@ class Utilities {
         tags.length = 0
       }
 
-      if (isNaN(data.post_count) || parseInt(data.post_count) <= 0) continue
-
       data.id = parseInt(data.id)
       data.category = parseInt(data.category)
       data.name = data.name.toString()
+      data.post_count = parseInt(data.post_count)
 
       tags.push(data)
     }
@@ -577,6 +576,15 @@ class Utilities {
   }
 
   async processTagAliasExport(stream) {
+    let date = new Date()
+
+    if (date.getUTCHours() < 7 || (date.getUTCHours() == 7 && date.getUTCMinutes() < 50)) {
+      date = new Date(date.getTime() - 86400000)
+    }
+
+    date.setUTCHours(7)
+    date.setUTCMinutes(44)
+    
     let parser = stream.pipe(csv.parse({ columns: true, trim: true }))
 
     let update = async (tagAliases) => {
@@ -614,7 +622,7 @@ class Utilities {
           if (tagAlias.antecedentName == newAlias.antecedent_name && tagAlias.consequentId == newAlias.consequentId) continue
 
           bulk.push({ update: { _id: newAlias.id.toString() } })
-          bulk.push({ doc: { id: newAlias.id, antecedentName: newAlias.antecedent_name, consequentId: newAlias.consequentId } })
+          bulk.push({ doc: { id: newAlias.id, antecedentName: newAlias.antecedent_name, consequentId: newAlias.consequentId, updatedAt: newAlias.updatedAt } })
         } else {
           bulk.push({ delete: { _id: newAlias.id.toString() } })
         }
@@ -639,7 +647,7 @@ class Utilities {
           }
 
           bulk.push({ index: { _id: tagAlias.id.toString() } })
-          bulk.push({ id: tagAlias.id, antecedentName: tagAlias.antecedent_name, consequentId: tagAlias.consequentId })
+          bulk.push({ id: tagAlias.id, antecedentName: tagAlias.antecedent_name, consequentId: tagAlias.consequentId, updatedAt: tagAlias.updatedAt })
         }
       }
 
@@ -664,6 +672,7 @@ class Utilities {
       }
 
       data.id = parseInt(data.id)
+      data.updatedAt = date
 
       tagAliases.push(data)
     }
@@ -672,6 +681,15 @@ class Utilities {
   }
 
   async processTagImplicationExport(stream) {
+    let date = new Date()
+
+    if (date.getUTCHours() < 7 || (date.getUTCHours() == 7 && date.getUTCMinutes() < 50)) {
+      date = new Date(date.getTime() - 86400000)
+    }
+
+    date.setUTCHours(7)
+    date.setUTCMinutes(44)
+
     let parser = stream.pipe(csv.parse({ columns: true, trim: true }))
 
     let update = async (tagImplications) => {
@@ -713,8 +731,8 @@ class Utilities {
           })()
 
           if (parent && child) {
-            tagImplication.antecedentId = child.id
-            tagImplication.consequentId = parent.id
+            newImplication.antecedentId = child.id
+            newImplication.consequentId = parent.id
           } else {
             if (!child) {
               console.error(`Unable to get tag: "${tagImplication.antecedent_name}"`)
@@ -730,7 +748,7 @@ class Utilities {
           if (tagImplication.antecedentId == newImplication.antecedentId && newImplication.consequentId == newImplication.consequentId) continue
 
           bulk.push({ update: { _id: newImplication.id.toString() } })
-          bulk.push({ doc: { id: newImplication.id, antecedentId: newImplication.antecedentId, consequentId: newImplication.consequentId } })
+          bulk.push({ doc: { id: newImplication.id, antecedentId: newImplication.antecedentId, consequentId: newImplication.consequentId, updatedAt: newImplication.updatedAt } })
         } else {
           bulk.push({ delete: { _id: newImplication.id.toString() } })
         }
@@ -770,7 +788,7 @@ class Utilities {
           }
 
           bulk.push({ index: { _id: tagImplication.id.toString() } })
-          bulk.push({ id: tagImplication.id, antecedentId: tagImplication.antecedentId, consequentId: tagImplication.consequentId })
+          bulk.push({ id: tagImplication.id, antecedentId: tagImplication.antecedentId, consequentId: tagImplication.consequentId, updatedAt: tagImplication.updatedAt })
         }
       }
 
@@ -790,13 +808,11 @@ class Utilities {
     for await (let data of parser) {
       if (tagImplications.length >= 10000) {
         await update(tagImplications)
-
         return
-
-        tagImplications.length = 0
       }
 
       data.id = parseInt(data.id)
+      data.updatedAt = date
 
       tagImplications.push(data)
     }
@@ -1224,6 +1240,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   }
 
   async addTagAlias(tagAlias) {
+    tagAlias.updatedAt = new Date()
     await this.database.index({
       index: "tagaliases",
       id: tagAlias.id.toString(),
@@ -1232,6 +1249,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   }
 
   async updateTagAlias(tagAlias) {
+    tagAlias.updatedAt = new Date()
     await this.database.update({ index: "tagaliases", id: tagAlias.id.toString(), doc: tagAlias })
   }
 
@@ -1261,6 +1279,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   }
 
   async addTagImplication(tagImplication) {
+    tagImplication.updatedAt = new Date()
     await this.database.index({
       index: "tagimplications",
       id: tagImplication.id.toString(),
@@ -1269,6 +1288,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   }
 
   async updateTagImplication(tagImplication) {
+    tagImplication.updatedAt = new Date()
     await this.database.update({ index: "tagimplications", id: tagImplication.id.toString(), doc: tagImplication })
   }
 
