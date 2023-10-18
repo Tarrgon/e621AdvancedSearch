@@ -230,11 +230,10 @@ class E621Requester {
     }
   }
 
-  async addNewTagAliases() {
+  async updateTagAliases(page = 1) {
     try {
-      let latestTagAliasId = await this.utilities.getLatestTagAliasId()
-      console.log(`Adding tag aliases after ${latestTagAliasId}`)
-      let data = await this.makeRequest(`tag_aliases.json?limit=100&page=a${latestTagAliasId}`)
+      console.log(`Updating tag aliases`)
+      let data = await this.makeRequest(`tag_aliases.json?limit=100&%5Border%5D=updated_at&page=${page}`)
 
       if (data.tag_aliases) return
 
@@ -254,7 +253,41 @@ class E621Requester {
         }
       }
 
-      if (data.length >= 100) await this.addNewTagAliases()
+      if (data.length >= 100) await this.updateTagAliases(++page)
+    } catch (e) {
+      console.error(e)
+
+      if (e.e621Moment == true || e.code == 500) {
+        return false
+      }
+    }
+  }
+
+  async updateTagImplications(page = 1) {
+    try {
+      console.log(`Updating tag implications`)
+      let data = await this.makeRequest(`tag_implications.json?limit=100&%5Border%5D=updated_at&page=${page}`)
+
+      if (data.tag_implications) return
+
+      for (let tagImplication of data) {
+        if (tagImplication.status == "active") {
+          let existingTagImplication = await this.utilities.getTagImplication(tagImplication.id)
+
+          let child = await this.utilities.getOrAddTag(tagImplication.antecedent_name)
+          let parent = await this.utilities.getOrAddTag(tagImplication.consequent_name)
+
+          if (!child || !parent) {
+            console.error(`Unable to add tag implication: ${tagImplication.antecedent_name} -> ${tagImplication.consequent_name} (${!child} | ${!parent})`)
+            continue
+          }
+
+          if (!existingTagImplication) await this.utilities.addTagImplication({ id: tagImplication.id, antecedentId: child.id, consequentId: parent.id })
+          else if (existingTagImplication.antecedentId != child.id || existingTagImplication.consequentId != parent.id) await this.utilities.updateTagImplication({ id: tagImplication.id, antecedentId: child.id, consequentId: parent.id })
+        }
+      }
+
+      if (data.length >= 100) await this.updateTagImplications(++page)
     } catch (e) {
       console.error(e)
 
@@ -267,6 +300,8 @@ class E621Requester {
   async getTag(tagName) {
     try {
       console.log(`Getting new tag: "${tagName}"`)
+      // let d = await this.utilities.getTagByName(tagName)
+      // if (d) return d
       let data = await this.makeRequest(`tags.json?limit=1&search[name_matches]=${tagName}`)
       if (data && data[0]) {
         return { id: data[0].id, name: data[0].name, category: data[0].category }

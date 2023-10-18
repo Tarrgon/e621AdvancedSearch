@@ -119,6 +119,7 @@ class Utilities {
     // // await this.database.indices.delete({ index: "posts" })
     // // await this.database.indices.delete({ index: "tags" })
     // // await this.database.indices.delete({ index: "tagaliases" })
+    // // await this.database.indices.delete({ index: "tagimplications" })
     // // await this.database.indices.delete({ index: "hangingrelationships" })
     */
 
@@ -126,7 +127,9 @@ class Utilities {
     if (!postsExists) {
       await this.database.indices.create({
         index: "posts", mappings: {
-          md5: { type: "keyword" }
+          properties: {
+            md5: { type: "keyword" }
+          }
         }
       })
       needExports = true
@@ -156,11 +159,23 @@ class Utilities {
       needExports = true
     }
 
+    let tagimplications = await this.database.indices.exists({ index: "tagimplications" })
+    if (!tagimplications) {
+      await this.database.indices.create({ index: "tagimplications" })
+      needExports = true
+    }
+
     let hangingRelationships = await this.database.indices.exists({ index: "hangingrelationships" })
     if (!hangingRelationships) {
       await this.database.indices.create({ index: "hangingrelationships" })
       needExports = true
     }
+
+    // This will forcefully apply database exports tomorrow. Used to rebuild the database without getting too far behind on updates.
+    // cron.schedule(`0 ${new Date(46800000).getHours()} * * *`, () => {
+    //   this.fetchAndApplyDatabaseExports()
+    // })
+    // return
 
     if (needExports) {
       await this.fetchAndApplyDatabaseExports()
@@ -228,8 +243,7 @@ class Utilities {
 
       console.log("Misses fixed")
 
-
-      if (await this.requester.addNewTagAliases() === false) {
+      if (await this.requester.updateTagAliases() === false) {
         setTimeout(() => {
           this.currentlyUpdating = false
           this.updateAll()
@@ -237,7 +251,17 @@ class Utilities {
         return
       }
 
-      console.log("New tag aliases added")
+      console.log("Tag aliases updated")
+
+      if (await this.requester.updateTagImplications() === false) {
+        setTimeout(() => {
+          this.currentlyUpdating = false
+          this.updateAll()
+        }, 5000)
+        return
+      }
+
+      console.log("Tag implications updated")
 
       console.log(`Update complete. Took ${Date.now() - t}ms`)
     } catch (e) {
@@ -272,6 +296,7 @@ class Utilities {
     let postExport = await this.requester.getDatabaseExport(`posts-${dateString}.csv.gz`)
     let tagExport = await this.requester.getDatabaseExport(`tags-${dateString}.csv.gz`)
     let tagAliasExport = await this.requester.getDatabaseExport(`tag_aliases-${dateString}.csv.gz`)
+    let tagImplicationExport = await this.requester.getDatabaseExport(`tag_implications-${dateString}.csv.gz`)
 
     this.tagCache = {}
 
@@ -304,6 +329,14 @@ class Utilities {
     console.log(`Tag alias export processed in ${Date.now() - time}ms`)
 
     await this.database.indices.refresh({ index: "tagaliases" })
+
+    time = Date.now()
+    await this.processTagImplicationExport(tagImplicationExport)
+    tagImplicationExport.destroy()
+    fs.rmSync(`tag_implications-${dateString}.csv`)
+    console.log(`Tag implication export processed in ${Date.now() - time}ms`)
+
+    await this.database.indices.refresh({ index: "tagimplications" })
 
     console.log(`Completed database parsing took: ${Date.now() - startTime}ms`)
 
@@ -362,6 +395,8 @@ class Utilities {
 
         tags.length = 0
       }
+
+      if (isNaN(data.post_count) || parseInt(data.post_count) <= 0) continue
 
       data.id = parseInt(data.id)
       data.category = parseInt(data.category)
@@ -424,15 +459,11 @@ class Utilities {
         for (let tagName of tags.split(" ")) {
           tagName = tagName.trim()
 
-          let tag = await this.getTagByName(tagName)
+          let tag = await this.getOrAddTag(tagName)
 
           if (!tag) {
-            tag = await this.getNewTag(tagName)
-
-            if (!tag) {
-              console.error(`Unable to get tag: "${tagName}"`)
-              continue
-            }
+            console.error(`Unable to get tag: "${tagName}"`)
+            continue
           }
 
           toReturn[tag.category].push(tag.id)
@@ -443,15 +474,11 @@ class Utilities {
           for (let tagName of tagNames) {
             tagName = tagName.trim()
 
-            let tag = await this.getTagByName(tagName)
+            let tag = await this.getOrAddTag(tagName)
 
             if (!tag) {
-              tag = await this.getNewTag(tagName)
-
-              if (!tag) {
-                console.error(`Unable to get tag: "${tagName}"`)
-                continue
-              }
+              console.error(`Unable to get tag: "${tagName}"`)
+              continue
             }
 
             toReturn[tag.category].push(tag.id)
@@ -573,7 +600,7 @@ class Utilities {
           if (usedTag) {
             newAlias.consequentId = usedTag.id
           } else {
-            let tag = await this.getNewTag(newAlias.consequent_name)
+            let tag = await this.getOrAddTag(newAlias.consequent_name)
 
             if (!tag) {
               console.error(`Unable to get tag: "${newAlias.consequent_name}"`)
@@ -600,7 +627,7 @@ class Utilities {
           if (usedTag) {
             tagAlias.consequentId = usedTag.id
           } else {
-            let tag = await this.getNewTag(tagAlias.consequent_name)
+            let tag = await this.getOrAddTag(tagAlias.consequent_name)
 
             if (!tag) {
               console.error(`Unable to get tag: "${tagAlias.consequent_name}"`)
@@ -637,13 +664,144 @@ class Utilities {
       }
 
       data.id = parseInt(data.id)
-      data.antecedent_name = data.antecedent_name
-      data.consequent_name = data.consequent_name
 
       tagAliases.push(data)
     }
 
     if (tagAliases.length > 0) await update(tagAliases)
+  }
+
+  async processTagImplicationExport(stream) {
+    let parser = stream.pipe(csv.parse({ columns: true, trim: true }))
+
+    let update = async (tagImplications) => {
+      let now = Date.now()
+
+      console.log("Batching 10000 tag implication updates")
+
+      let bulk = []
+
+      let cursor = await this.getTagImplicationsWithIds(tagImplications.map(tagImplication => tagImplication.id.toString()))
+
+      let tagNames = tagImplications.map(tagImplication => tagImplication.consequent_name).concat(tagImplications.map(tagImplication => tagImplication.antecedent_name))
+
+      tagNames = tagNames.filter((a, i, arr) => arr.indexOf(a) == i)
+
+      let usedTags = await this.getTagsWithNames(tagNames)
+
+      for (let tagImplication of cursor) {
+        let index = tagImplications.findIndex(t => t.id == tagImplication.id)
+        if (index == -1) continue
+
+        let newImplication = tagImplications.splice(index, 1)[0]
+
+        if (newImplication.status == "active") {
+          let child = usedTags.find(tag => tag.name == tagImplication.antecedent_name) || (async () => {
+            let t = await this.getOrAddTag(tagImplication.antecedent_name)
+            if (t) {
+              usedTags.push(t)
+            }
+            return t
+          })()
+
+          let parent = usedTags.find(tag => tag.name == tagImplication.consequent_name) || (async () => {
+            let t = await this.getOrAddTag(tagImplication.consequent_name)
+            if (t) {
+              usedTags.push(t)
+            }
+            return t
+          })()
+
+          if (parent && child) {
+            tagImplication.antecedentId = child.id
+            tagImplication.consequentId = parent.id
+          } else {
+            if (!child) {
+              console.error(`Unable to get tag: "${tagImplication.antecedent_name}"`)
+            }
+
+            if (!parent) {
+              console.error(`Unable to get tag: "${tagImplication.consequent_name}"`)
+            }
+
+            continue
+          }
+
+          if (tagImplication.antecedentId == newImplication.antecedentId && newImplication.consequentId == newImplication.consequentId) continue
+
+          bulk.push({ update: { _id: newImplication.id.toString() } })
+          bulk.push({ doc: { id: newImplication.id, antecedentId: newImplication.antecedentId, consequentId: newImplication.consequentId } })
+        } else {
+          bulk.push({ delete: { _id: newImplication.id.toString() } })
+        }
+      }
+
+      for (let tagImplication of tagImplications) {
+        if (tagImplication.status == "active") {
+          let child = usedTags.find(tag => tag.name == tagImplication.antecedent_name) || (async () => {
+            let t = await this.getOrAddTag(tagImplication.antecedent_name)
+            if (t) {
+              usedTags.push(t)
+            }
+            return t
+          })()
+
+          let parent = usedTags.find(tag => tag.name == tagImplication.consequent_name) || (async () => {
+            let t = await this.getOrAddTag(tagImplication.consequent_name)
+            if (t) {
+              usedTags.push(t)
+            }
+            return t
+          })()
+
+          if (parent && child) {
+            tagImplication.antecedentId = child.id
+            tagImplication.consequentId = parent.id
+          } else {
+            if (!child) {
+              console.error(`Unable to get tag: "${tagImplication.antecedent_name}"`)
+            }
+
+            if (!parent) {
+              console.error(`Unable to get tag: "${tagImplication.consequent_name}"`)
+            }
+
+            continue
+          }
+
+          bulk.push({ index: { _id: tagImplication.id.toString() } })
+          bulk.push({ id: tagImplication.id, antecedentId: tagImplication.antecedentId, consequentId: tagImplication.consequentId })
+        }
+      }
+
+      if (bulk.length > 0) {
+        let res = await this.database.bulk({ index: "tagimplications", operations: bulk })
+        if (res.errors) {
+          let now = Date.now()
+          console.error(`Bulk had errors, written to bulk-error-${now}.json`)
+          fs.writeFileSync(`./bulk-error-${now}.json`, JSON.stringify(res, null, 4))
+        }
+      }
+      console.log(`Operation took ${Date.now() - now}ms`)
+    }
+
+    let tagImplications = []
+
+    for await (let data of parser) {
+      if (tagImplications.length >= 10000) {
+        await update(tagImplications)
+
+        return
+
+        tagImplications.length = 0
+      }
+
+      data.id = parseInt(data.id)
+
+      tagImplications.push(data)
+    }
+
+    if (tagImplications.length > 0) await update(tagImplications)
   }
 
   async getLatestPostId() {
@@ -1079,6 +1237,43 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
 
   async deleteTagAlias(id) {
     await this.database.delete({ index: "tagaliases", id: id.toString() })
+  }
+
+  async getLatestTagImplicationId() {
+    return (await this.database.search({
+      index: "tagimplications",
+      size: 1,
+      sort: { id: "desc" },
+      query: { match_all: {} }
+    })).hits.hits[0]._source.id
+  }
+
+  async getTagImplication(id) {
+    if (await this.database.exists({ index: "tagimplications", id: id.toString() })) {
+      return (await this.database.get({ index: "tagimplications", id: id.toString() }))._source
+    }
+
+    return null
+  }
+
+  async getTagImplicationsWithIds(ids) {
+    return (await this.database.mget({ index: "tagimplications", ids })).docs.filter(d => d.found).map(d => d._source)
+  }
+
+  async addTagImplication(tagImplication) {
+    await this.database.index({
+      index: "tagimplications",
+      id: tagImplication.id.toString(),
+      document: tagImplication
+    })
+  }
+
+  async updateTagImplication(tagImplication) {
+    await this.database.update({ index: "tagimplications", id: tagImplication.id.toString(), doc: tagImplication })
+  }
+
+  async deleteTagImplication(id) {
+    await this.database.delete({ index: "tagimplications", id: id.toString() })
   }
 
   async convertPostTagIdsToTags(post) {
