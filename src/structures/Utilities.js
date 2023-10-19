@@ -2116,7 +2116,6 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
               }
               req.sort = group.orderTags
             } else {
-              console.log("Getting random")
               let randomScore = {}
 
               if (randomSeedIndex != -1) {
@@ -2164,29 +2163,36 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
     }
   }
 
-  async getDirectTagRelationships(tagName) {
+  async getDirectTagRelationships(tagName, includes) {
     let tag = await this.getOrAddTag(tagName)
 
     if (!tag) return {}
 
-    let res = await this.database.search({
-      size: 10000, index: "tagimplications", sort: { id: "desc" }, query: {
-        bool: {
-          should: [
-            {
-              term: {
-                antecedentId: tag.id
-              },
-            },
-            {
-              term: {
-                consequentId: tag.id
-              }
-            }
-          ],
-          minimum_should_match: 1
-        }
+    let query = {
+      bool: {
+        should: [],
+        minimum_should_match: 1
       }
+    }
+
+    if (includes.includes("parents")) {
+      query.bool.should.push({
+        term: {
+          antecedentId: tag.id
+        }
+      })
+    }
+
+    if (includes.includes("children")) {
+      query.bool.should.push({
+        term: {
+          consequentId: tag.id
+        }
+      })
+    }
+
+    let res = await this.database.search({
+      size: 10000, index: "tagimplications", sort: { id: "desc" }, query
     })
 
     let relationships = res.hits.hits.map(hit => hit._source)
@@ -2206,6 +2212,42 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
       thisTag: tag,
       parents: antecedes,
       children: consequents
+    }
+  }
+
+  async getAllParentRelationships(tagName) {
+    let tag = await this.getOrAddTag(tagName)
+
+    if (!tag) return {}
+
+    let query = {
+      bool: {
+        should: [{
+          term: {
+            antecedentId: tag.id
+          }
+        }],
+        minimum_should_match: 1
+      }
+    }
+
+    let res = await this.database.search({
+      size: 10000, index: "tagimplications", sort: { id: "desc" }, query
+    })
+
+    let relationships = res.hits.hits.map(hit => hit._source)
+
+    let antecedes = []
+
+    for (let relationship of relationships) {
+      if (relationship.antecedentId == tag.id) {
+        antecedes.push((await this.getTag(relationship.consequentId)))
+      }
+    }
+
+    return {
+      thisTag: tag,
+      parents: antecedes.length == 0 ? [] : await Promise.all(antecedes.map(async p => ({ thisTag: p, parents: (await this.getAllParentRelationships(p.name)).parents })))
     }
   }
 }

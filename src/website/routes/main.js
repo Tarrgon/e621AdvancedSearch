@@ -28,15 +28,23 @@ router.get("/", handle)
 router.post("/", handle)
 
 router.get("/tagrelationships", async (req, res) => {
+  let include = req.query.include ? req.query.include.split(",") : ["children", "parents"]
   let tags = req.query.tags.split(" ")
 
   if (tags.length > 150) tags.length = 150
 
   let relationships = {}
 
-  for (let tag of tags) {
-    if (tag.trim() == "") continue
-    relationships[tag] = await utils.getDirectTagRelationships(tag.trim())
+  if (include.includes("allparents")) {
+    for (let tag of tags) {
+      if (tag.trim() == "") continue
+      relationships[tag] = await utils.getAllParentRelationships(tag.trim())
+    }
+  } else {
+    for (let tag of tags) {
+      if (tag.trim() == "") continue
+      relationships[tag] = await utils.getDirectTagRelationships(tag.trim(), include)
+    }
   }
 
   return res.json(relationships)
