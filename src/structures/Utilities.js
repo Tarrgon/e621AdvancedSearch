@@ -1148,7 +1148,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
     return null
   }
 
-  async getAliasOrTag(tagName) {
+  async getAliasOrTagId(tagName) {
     let alias = await this.getTagAliasByName(tagName)
     if (alias) return alias.consequentId
 
@@ -1157,6 +1157,24 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
     if (tag) return tag.id
 
     return null
+  }
+
+  async getAliasOrTag(tagName) {
+    let alias = await this.getTagAliasByName(tagName)
+    if (alias) {
+      return await this.getTag(alias.consequentId)
+    }
+
+    return await this.getTagByName(tagName)
+  }
+
+  async getOrAddAliasOrTag(tagName) {
+    let alias = await this.getTagAliasByName(tagName)
+    if (alias) {
+      return await this.getTag(alias.consequentId)
+    }
+
+    return await this.getOrAddTag(tagName)
   }
 
   async getTag(id) {
@@ -1950,7 +1968,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
             if (j < tags.length - 1) group.tokens[i++] = "~"
           }
         } else {
-          let tagId = await this.getAliasOrTag(token)
+          let tagId = await this.getAliasOrTagId(token)
 
           if (tagId) {
             group.tokens[i] = tagId
@@ -2164,7 +2182,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   }
 
   async getDirectTagRelationships(tagName, includes) {
-    let tag = await this.getOrAddTag(tagName)
+    let tag = await this.getOrAddAliasOrTag(tagName)
 
     if (!tag) return {}
 
@@ -2216,7 +2234,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   }
 
   async getAllParentRelationships(tagName) {
-    let tag = await this.getOrAddTag(tagName)
+    let tag = await this.getOrAddAliasOrTag(tagName)
 
     if (!tag) return {}
 
