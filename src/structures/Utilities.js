@@ -2218,11 +2218,30 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
     let antecedes = []
     let consequents = []
 
+    // TODO: Batch the shit out of this, getting every tag and tag alias one at a time is way too slow.
     for (let relationship of relationships) {
       if (relationship.antecedentId == tag.id) {
-        antecedes.push((await this.getTag(relationship.consequentId)))
+        let t = await this.getTag(relationship.consequentId)
+
+        if (t) { // See: face_tuft. Angry
+          let alias = await this.getTagAliasByName(t.name)
+          if (alias) {
+            t = await this.getTag(alias.consequentId)
+          }
+        }
+
+        antecedes.push(t)
       } else {
-        consequents.push((await this.getTag(relationship.antecedentId)))
+        let t = await this.getTag(relationship.antecedentId)
+
+        if (t) { // See: face_tuft. Angry
+          let alias = await this.getTagAliasByName(t.name)
+          if (alias) {
+            t = await this.getTag(alias.consequentId)
+          }
+        }
+
+        consequents.push(t)
       }
     }
 
