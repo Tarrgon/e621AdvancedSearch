@@ -360,6 +360,26 @@ class E621Requester {
     }
   }
 
+  async getTagById(id) {
+    try {
+      console.log(`Getting new tag by id: ${id}`)
+      // let d = await this.utilities.getTagByName(tagName)
+      // if (d) return d
+      let data = await this.addUrlToQueue(`tags.json?limit=1&search[id]=${id}`)
+      if (data && data[0]) {
+        return { id: data[0].id, name: data[0].name, category: data[0].category }
+      } else {
+        return null
+      }
+    } catch (e) {
+      if (e.code == 404) {
+        console.error(`Tag not found: ${tagName}`)
+      } else {
+        console.error(e)
+      }
+    }
+  }
+
   getDatabaseExport(exportName) {
     return new Promise(async (resolve, reject) => {
       if (fs.existsSync(`./${exportName.slice(0, -3)}`))

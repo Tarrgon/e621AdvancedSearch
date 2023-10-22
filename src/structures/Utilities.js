@@ -1148,6 +1148,17 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
     return null
   }
 
+  async getOrAddTagById(id) {
+    let tag = await this.getTag(id)
+
+    if (tag) return tag
+
+    tag = await this.getNewTagById(id)
+    if (tag) return tag
+
+    return null
+  }
+
   async getAliasOrTagId(tagName) {
     let alias = await this.getTagAliasByName(tagName)
     if (alias) return alias.consequentId
@@ -1206,6 +1217,16 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
 
   async getNewTag(tagName) {
     let tag = await this.requester.getTag(tagName)
+
+    if (tag) {
+      await this.addTag(tag)
+    }
+
+    return tag
+  }
+
+  async getNewTagById(id) {
+    let tag = await this.requester.getTagById(id)
 
     if (tag) {
       await this.addTag(tag)
@@ -2228,9 +2249,11 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
           if (alias) {
             t = await this.getTag(alias.consequentId)
           }
+        } else {
+          t = await this.getNewTagById(relationship.consequentId)
         }
 
-        antecedes.push(t)
+        if (t) antecedes.push(t)
       } else {
         let t = await this.getTag(relationship.antecedentId)
 
@@ -2239,9 +2262,11 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
           if (alias) {
             t = await this.getTag(alias.consequentId)
           }
+        } else {
+          t = await this.getNewTagById(relationship.antecedentId)
         }
 
-        consequents.push(t)
+        if (t) consequents.push(t)
       }
     }
 
