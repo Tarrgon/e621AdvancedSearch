@@ -206,7 +206,7 @@ class Utilities {
         setTimeout(() => {
           this.currentlyUpdating = false
           this.updateAll()
-        }, 5000)
+        }, 20000)
         return
       }
 
@@ -216,7 +216,7 @@ class Utilities {
         setTimeout(() => {
           this.currentlyUpdating = false
           this.updateAll()
-        }, 5000)
+        }, 20000)
         return
       }
 
@@ -226,7 +226,7 @@ class Utilities {
         setTimeout(() => {
           this.currentlyUpdating = false
           this.updateAll()
-        }, 5000)
+        }, 20000)
         return
       }
 
@@ -237,7 +237,7 @@ class Utilities {
         setTimeout(() => {
           this.currentlyUpdating = false
           this.updateAll()
-        }, 5000)
+        }, 20000)
         return
       }
 
@@ -247,7 +247,7 @@ class Utilities {
         setTimeout(() => {
           this.currentlyUpdating = false
           this.updateAll()
-        }, 5000)
+        }, 20000)
         return
       }
 
@@ -257,7 +257,7 @@ class Utilities {
         setTimeout(() => {
           this.currentlyUpdating = false
           this.updateAll()
-        }, 5000)
+        }, 20000)
         return
       }
 
@@ -714,16 +714,16 @@ class Utilities {
         let newImplication = tagImplications.splice(index, 1)[0]
 
         if (newImplication.status == "active") {
-          let child = usedTags.find(tag => tag.name == tagImplication.antecedent_name) || (async () => {
-            let t = await this.getOrAddTag(newImplication.antecedent_name)
+          let child = usedTags.find(tag => tag.name == tagImplication.antecedent_name) || await (async () => {
+            let t = await this.getOrAddAliasOrTag(newImplication.antecedent_name)
             if (t) {
               usedTags.push(t)
             }
             return t
           })()
 
-          let parent = usedTags.find(tag => tag.name == tagImplication.consequent_name) || (async () => {
-            let t = await this.getOrAddTag(newImplication.consequent_name)
+          let parent = usedTags.find(tag => tag.name == tagImplication.consequent_name) || await (async () => {
+            let t = await this.getOrAddAliasOrTag(newImplication.consequent_name)
             if (t) {
               usedTags.push(t)
             }
@@ -756,16 +756,16 @@ class Utilities {
 
       for (let tagImplication of tagImplications) {
         if (tagImplication.status == "active") {
-          let child = usedTags.find(tag => tag.name == tagImplication.antecedent_name) || (async () => {
-            let t = await this.getOrAddTag(tagImplication.antecedent_name)
+          let child = usedTags.find(tag => tag.name == tagImplication.antecedent_name) || await (async () => {
+            let t = await this.getOrAddAliasOrTag(tagImplication.antecedent_name)
             if (t) {
               usedTags.push(t)
             }
             return t
           })()
 
-          let parent = usedTags.find(tag => tag.name == tagImplication.consequent_name) || (async () => {
-            let t = await this.getOrAddTag(tagImplication.consequent_name)
+          let parent = usedTags.find(tag => tag.name == tagImplication.consequent_name) || await (async () => {
+            let t = await this.getOrAddAliasOrTag(tagImplication.consequent_name)
             if (t) {
               usedTags.push(t)
             }
