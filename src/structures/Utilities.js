@@ -747,6 +747,8 @@ class Utilities {
 
           if (tagImplication.antecedentId == newImplication.antecedentId && newImplication.consequentId == newImplication.consequentId) continue
 
+          if (newImplication.antecedentId == newImplication.consequentId) continue
+
           bulk.push({ update: { _id: newImplication.id.toString() } })
           bulk.push({ doc: { id: newImplication.id, antecedentId: newImplication.antecedentId, consequentId: newImplication.consequentId, updatedAt: newImplication.updatedAt } })
         } else {
@@ -786,6 +788,8 @@ class Utilities {
 
             continue
           }
+
+          if (tagImplication.antecedentId == tagImplication.consequentId) continue
 
           bulk.push({ index: { _id: tagImplication.id.toString() } })
           bulk.push({ id: tagImplication.id, antecedentId: tagImplication.antecedentId, consequentId: tagImplication.consequentId, updatedAt: tagImplication.updatedAt })
@@ -2253,7 +2257,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
           t = await this.getNewTagById(relationship.consequentId)
         }
 
-        if (t) antecedes.push(t)
+        if (t && t.id != tag.id) antecedes.push(t)
       } else {
         let t = await this.getTag(relationship.antecedentId)
 
@@ -2266,7 +2270,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
           t = await this.getNewTagById(relationship.antecedentId)
         }
 
-        if (t) consequents.push(t)
+        if (t && t.id != tag.id) consequents.push(t)
       }
     }
 
@@ -2303,7 +2307,11 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
 
     for (let relationship of relationships) {
       if (relationship.antecedentId == tag.id) {
-        antecedes.push((await this.getTag(relationship.consequentId)))
+        let t = await this.getTag(relationship.consequentId)
+
+        if (t.id == tag.id) continue
+
+        antecedes.push(t)
       }
     }
 
