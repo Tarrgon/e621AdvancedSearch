@@ -715,32 +715,36 @@ class Utilities {
 
         if (newImplication.status == "active") {
           let child = usedTags.find(tag => tag.name == tagImplication.antecedent_name) || await (async () => {
-            let t = await this.getOrAddAliasOrTag(newImplication.antecedent_name)
+            let [t, isAlias] = await this.getOrAddAliasOrTag(newImplication.antecedent_name)
+
             if (t) {
               usedTags.push(t)
             }
-            return t
+
+            return isAlias ? null : t
           })()
 
           let parent = usedTags.find(tag => tag.name == tagImplication.consequent_name) || await (async () => {
-            let t = await this.getOrAddAliasOrTag(newImplication.consequent_name)
+            let [t, isAlias] = await this.getOrAddAliasOrTag(newImplication.consequent_name)
+
             if (t) {
               usedTags.push(t)
             }
-            return t
+
+            return isAlias ? null : t
           })()
 
           if (parent && child) {
             newImplication.antecedentId = child.id
             newImplication.consequentId = parent.id
           } else {
-            if (!child) {
-              console.error(`Unable to get tag: "${tagImplication.antecedent_name}"`)
-            }
+            // if (!child) {
+            //   console.error(`Unable to get tag: "${tagImplication.antecedent_name}"`)
+            // }
 
-            if (!parent) {
-              console.error(`Unable to get tag: "${tagImplication.consequent_name}"`)
-            }
+            // if (!parent) {
+            //   console.error(`Unable to get tag: "${tagImplication.consequent_name}"`)
+            // }
 
             continue
           }
@@ -759,32 +763,36 @@ class Utilities {
       for (let tagImplication of tagImplications) {
         if (tagImplication.status == "active") {
           let child = usedTags.find(tag => tag.name == tagImplication.antecedent_name) || await (async () => {
-            let t = await this.getOrAddAliasOrTag(tagImplication.antecedent_name)
+            let [t, isAlias] = await this.getOrAddAliasOrTag(tagImplication.antecedent_name)
+
             if (t) {
               usedTags.push(t)
             }
-            return t
+
+            return isAlias ? null : t
           })()
 
           let parent = usedTags.find(tag => tag.name == tagImplication.consequent_name) || await (async () => {
-            let t = await this.getOrAddAliasOrTag(tagImplication.consequent_name)
+            let [t, isAlias] = await this.getOrAddAliasOrTag(tagImplication.consequent_name)
+
             if (t) {
               usedTags.push(t)
             }
-            return t
+
+            return isAlias ? null : t
           })()
 
           if (parent && child) {
             tagImplication.antecedentId = child.id
             tagImplication.consequentId = parent.id
           } else {
-            if (!child) {
-              console.error(`Unable to get tag: "${tagImplication.antecedent_name}"`)
-            }
+            // if (!child) {
+            //   console.error(`Unable to get tag: "${tagImplication.antecedent_name}"`)
+            // }
 
-            if (!parent) {
-              console.error(`Unable to get tag: "${tagImplication.consequent_name}"`)
-            }
+            // if (!parent) {
+            //   console.error(`Unable to get tag: "${tagImplication.consequent_name}"`)
+            // }
 
             continue
           }
@@ -1186,10 +1194,10 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   async getOrAddAliasOrTag(tagName) {
     let alias = await this.getTagAliasByName(tagName)
     if (alias) {
-      return await this.getTag(alias.consequentId)
+      return [await this.getTag(alias.consequentId), true]
     }
 
-    return await this.getOrAddTag(tagName)
+    return [await this.getOrAddTag(tagName), false]
   }
 
   async getTag(id) {
@@ -2207,7 +2215,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   }
 
   async getDirectTagRelationships(tagName, includes) {
-    let tag = await this.getOrAddAliasOrTag(tagName)
+    let [tag, isAlias] = await this.getOrAddAliasOrTag(tagName)
 
     if (!tag) return {}
 
@@ -2251,7 +2259,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
         if (t) { // See: face_tuft. Angry
           let alias = await this.getTagAliasByName(t.name)
           if (alias) {
-            t = await this.getTag(alias.consequentId)
+            t = null //await this.getTag(alias.consequentId) ALAISES DO NOT TRANSFER THEIR IMPLICATIONS FOR SOME GODFORSAKEN REASON
           }
         } else {
           t = await this.getNewTagById(relationship.consequentId)
@@ -2264,7 +2272,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
         if (t) { // See: face_tuft. Angry
           let alias = await this.getTagAliasByName(t.name)
           if (alias) {
-            t = await this.getTag(alias.consequentId)
+            t = null //await this.getTag(alias.consequentId) ALAISES DO NOT TRANSFER THEIR IMPLICATIONS FOR SOME GODFORSAKEN REASON
           }
         } else {
           t = await this.getNewTagById(relationship.antecedentId)
@@ -2282,7 +2290,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   }
 
   async getAllParentRelationships(tagName) {
-    let tag = await this.getOrAddAliasOrTag(tagName)
+    let [tag, isAlias] = await this.getOrAddAliasOrTag(tagName)
 
     if (!tag) return {}
 
