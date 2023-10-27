@@ -38,11 +38,23 @@ router.get("/tagrelationships", async (req, res) => {
   if (include.includes("allparents")) {
     for (let tag of tags) {
       if (tag.trim() == "") continue
+      let alias = await utils.getTagAliasByName(tag)
+
+      if (alias) {
+        tag = (await utils.getTag(alias.consequentId)).name
+      }
+
       relationships[tag] = await utils.getAllParentRelationships(tag.trim())
     }
   } else {
     for (let tag of tags) {
       if (tag.trim() == "") continue
+      let alias = await utils.getTagAliasByName(tag)
+      
+      if (alias) {
+        tag = (await utils.getTag(alias.consequentId)).name
+      }
+      
       relationships[tag] = await utils.getDirectTagRelationships(tag.trim(), include)
     }
   }
