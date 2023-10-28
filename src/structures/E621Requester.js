@@ -345,7 +345,7 @@ class E621Requester {
       console.log(`Getting new tag: "${tagName}"`)
       // let d = await this.utilities.getTagByName(tagName)
       // if (d) return d
-      let data = await this.addUrlToQueue(`tags.json?limit=1&search[name_matches]=${tagName}`)
+      let data = await this.addUrlToQueue(`tags.json?limit=1&search[name_matches]=${encodeURIComponent(tagName)}`)
       if (data && data[0]) {
         return { id: data[0].id, name: data[0].name, category: data[0].category }
       } else {
