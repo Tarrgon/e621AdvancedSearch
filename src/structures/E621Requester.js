@@ -251,8 +251,7 @@ class E621Requester {
       for (let tagAlias of data) {
         let existingTagAlias = await this.utilities.getTagAlias(tagAlias.id)
 
-        if (existingTagAlias && existingTagAlias.updatedAt >= new Date(tagAlias.updated_at)) {
-          console.log("Skipping up to date")
+        if (existingTagAlias && new Date(existingTagAlias.updatedAt) >= new Date(tagAlias.updated_at)) {
           continue
         }
 
@@ -301,7 +300,7 @@ class E621Requester {
       for (let tagImplication of data) {
         let existingTagImplication = await this.utilities.getTagImplication(tagImplication.id)
 
-        if (existingTagImplication && existingTagImplication.updatedAt >= new Date(tagImplication.updated_at)) {
+        if (existingTagImplication && new Date(existingTagImplication.updatedAt) >= new Date(tagImplication.updated_at)) {
           continue
         }
 
@@ -351,7 +350,7 @@ class E621Requester {
       for (let tag of data) {
         let existingTag = await this.utilities.getTag(tag.id)
   
-        if (existingTag && existingTag.updatedAt >= new Date(tag.updated_at)) {
+        if (existingTag && new Date(existingTag.updatedAt) >= new Date(tag.updated_at)) {
           continue
         }
   
