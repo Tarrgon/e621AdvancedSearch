@@ -1,3 +1,9 @@
+/**
+ * TODO:
+ * Add updating post count to tags
+ * * This means when updating posts I need to add/subtract tag changes from post count as they aren't technically "updated"
+ */
+
 const { Client } = require("@elastic/elasticsearch")
 const E621Requester = require("./E621Requester.js")
 const Tokenizer = require("./Tokenizer.js")
@@ -67,13 +73,17 @@ const META_TAGS_TO_FIELD_NAMES = {
   ratinglocked: "isRatingLocked",
   notelocked: "isNoteLocked",
   md5: "md5",
-  duration: "duration"
+  duration: "duration",
+  inparent: "inParent",
+  inchild: "inChild",
+  inancestor: "inAncestor",
+  indescendant: "inDescendant"
 }
 
 const META_TAGS = ["order", "user", "approver", "id", "score", "favcount", "favoritecount", "commentcount", "comment_count", "tagcount",
   "gentags", "arttags", "chartags", "copytags", "spectags", "invtags", "lortags", "loretags", "metatags", "rating", "type",
   "width", "height", "mpixels", "megapixels", "ratio", "filesize", "status", "date", "source", "ischild", "isparent", "parent", "hassource",
-  "ratinglocked", "notelocked", "md5", "duration"
+  "ratinglocked", "notelocked", "md5", "duration", "inparent", "inchild", "inancestor", "indescendant"
 ]
 
 const TAG_CATEGORIES_TO_CATEGORY_ID = {
@@ -243,6 +253,16 @@ class Utilities {
 
       console.log("Misses fixed")
 
+      if (await this.requester.updateTags() === false) {
+        setTimeout(() => {
+          this.currentlyUpdating = false
+          this.updateAll()
+        }, 20000)
+        return
+      }
+
+      console.log("Tags updated")
+
       if (await this.requester.updateTagAliases() === false) {
         setTimeout(() => {
           this.currentlyUpdating = false
@@ -348,6 +368,15 @@ class Utilities {
   }
 
   async processTagExport(stream) {
+    let date = new Date()
+
+    if (date.getUTCHours() < 7 || (date.getUTCHours() == 7 && date.getUTCMinutes() < 50)) {
+      date = new Date(date.getTime() - 86400000)
+    }
+
+    date.setUTCHours(7)
+    date.setUTCMinutes(44)
+
     let parser = stream.pipe(csv.parse({ columns: true, trim: true }))
 
     let update = async (tags) => {
@@ -367,13 +396,17 @@ class Utilities {
 
         if (newTag.post_count <= 0 || (tag.category == newTag.category && tag.name == newTag.name)) continue
 
+        if (tag.category != newTag.category) {
+          await this.updateTagCategoryEverywhere(newTag, tag.category, newTag.category)
+        }
+
         bulk.push({ update: { _id: tag.id.toString() } })
-        bulk.push({ doc: { id: newTag.id, name: newTag.name, category: newTag.category } })
+        bulk.push({ doc: { id: newTag.id, name: newTag.name, category: newTag.category, postCount: newTag.post_count, updatedAt: newTag.date } })
       }
 
       for (let tag of tags) {
         bulk.push({ index: { _id: tag.id.toString() } })
-        bulk.push({ id: tag.id, name: tag.name, category: tag.category })
+        bulk.push({ id: tag.id, name: tag.name, category: tag.category, postCount: tag.post_count, updatedAt: tag.date })
       }
 
       if (bulk.length > 0) {
@@ -400,6 +433,7 @@ class Utilities {
       data.category = parseInt(data.category)
       data.name = data.name.toString()
       data.post_count = parseInt(data.post_count)
+      data.updatedAt = date
 
       tags.push(data)
     }
@@ -1252,8 +1286,189 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
     await this.database.indices.refresh({ index: "tags" })
   }
 
+  async updateTagCategoryEverywhere(tag, oldCategory, newCategory) {
+
+    let update = async (posts) => {
+      let now = Date.now()
+
+      console.log(`Batching 10000 post tag category updates last id: ${posts[posts.length - 1].id}`)
+
+      let bulk = []
+
+      for (let post of posts) {
+        bulk.push({ update: { _id: post.id.toString() } })
+        bulk.push({
+          script: {
+            lang: "painless",
+            source: `
+if (ctx._source.tags[params.oldCategory].indexOf(params.tagId) != -1) ctx._source.tags[params.oldCategory].remove(ctx._source.tags[params.oldCategory].indexOf(params.tagId));
+if (ctx._source.tags[params.newCategory].indexOf(params.tagId) == -1) ctx._source.tags[params.newCategory].add(params.tagId);
+`,
+            params: {
+              oldCategory,
+              newCategory,
+              tagId: tag.id
+            }
+          },
+        })
+      }
+
+      if (bulk.length > 0) {
+        let res = await this.database.bulk({ index: "posts", operations: bulk })
+        if (res.errors) {
+          let now = Date.now()
+          console.error(`Bulk had errors, written to bulk-error-${now}.json`)
+          fs.writeFileSync(`./bulk-error-${now}.json`, JSON.stringify(res, null, 4))
+        }
+      }
+      console.log(`Operation took ${Date.now() - now}ms`)
+    }
+
+    let posts = []
+
+    let pointInTime = await this.database.openPointInTime({ index: "posts", keep_alive: "5m" })
+
+    let res = await this.database.search({
+      size: 1024, sort: { id: "desc" },
+      pit: {
+        id: pointInTime.id,
+        keep_alive: "5m"
+      },
+      query: {
+        bool: {
+          must: {
+            term: {
+              flattenedTags: tag.id
+            }
+          }
+        }
+      }
+    })
+
+    posts = posts.concat(res.hits.hits.map(t => t._source))
+
+    while (res.hits.hits.length > 0) {
+      res = await this.database.search({
+        size: 1024, sort: { id: "desc" }, search_after: res.hits.hits[res.hits.hits.length - 1].sort,
+        pit: {
+          id: pointInTime.id,
+          keep_alive: "5m"
+        }, query: {
+          bool: {
+            must: {
+              term: {
+                flattenedTags: tag.id
+              }
+            }
+          }
+        }
+      })
+
+      posts = posts.concat(res.hits.hits.map(t => t._source))
+
+      if (posts.length >= 10000) {
+        await update(posts)
+
+        posts.length = 0
+      }
+    }
+
+    if (posts.length > 0) await update(posts)
+
+    await this.database.closePointInTime({ id: pointInTime.id })
+  }
+
+  async fixDoubles() {
+
+    let update = async (posts) => {
+      let now = Date.now()
+
+      console.log(`Batching 10000 post tag duplicate fixes last id: ${posts[posts.length - 1].id}`)
+
+      let bulk = []
+
+      for (let post of posts) {
+        bulk.push({ update: { _id: post.id.toString() } })
+        bulk.push({
+          script: {
+            lang: "painless",
+            source: `
+for (int i = 0; i < ctx._source.tags.size(); i++) {
+  Set set = new HashSet(ctx._source.tags[i]);
+  ctx._source.tags[i].clear();
+  ctx._source.tags[i].addAll(set);
+}
+`,
+          },
+        })
+      }
+
+      if (bulk.length > 0) {
+        let res = await this.database.bulk({ index: "posts", operations: bulk })
+        if (res.errors) {
+          let now = Date.now()
+          console.error(`Bulk had errors, written to bulk-error-${now}.json`)
+          fs.writeFileSync(`./bulk-error-${now}.json`, JSON.stringify(res, null, 4))
+        }
+      }
+      console.log(`Operation took ${Date.now() - now}ms`)
+    }
+
+    let posts = []
+
+    let pointInTime = await this.database.openPointInTime({ index: "posts", keep_alive: "5m" })
+
+    let res = await this.database.search({
+      size: 1024, sort: { id: "desc" },
+      pit: {
+        id: pointInTime.id,
+        keep_alive: "5m"
+      },
+      query: {
+        match_all: {}
+      }
+    })
+
+    posts = posts.concat(res.hits.hits.map(t => t._source))
+
+    while (res.hits.hits.length > 0) {
+      res = await this.database.search({
+        size: 1024, sort: { id: "desc" }, search_after: res.hits.hits[res.hits.hits.length - 1].sort,
+        pit: {
+          id: pointInTime.id,
+          keep_alive: "5m"
+        }, query: {
+          match_all: {}
+        }
+      })
+
+      posts = posts.concat(res.hits.hits.map(t => t._source))
+
+      if (posts.length >= 10000) {
+        await update(posts)
+
+        posts.length = 0
+      }
+    }
+
+    if (posts.length > 0) await update(posts)
+
+    await this.database.closePointInTime({ id: pointInTime.id })
+  }
+
   async updateTag(tag) {
+    let existingTag = await this.getTag(tag.id)
+
+    if (existingTag.category != tag.category) {
+      await this.updateTagCategoryEverywhere(tag, existingTag.category, tag.category)
+    }
+
     await this.database.update({ index: "tags", id: tag.id.toString(), doc: tag })
+    await this.database.indices.refresh({ index: "tags" })
+  }
+
+  async deleteTag(id) {
+    await this.database.delete({ index: "tags", id: id.toString() })
     await this.database.indices.refresh({ index: "tags" })
   }
 
@@ -1405,21 +1620,24 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
 
     if (type == "number") {
       if (!isNaN(value)) {
-        query[field] = field != "mpixels" ? parseFloat(value) : parseFloat(value) * 1000000
+        query.term = {}
+        query.term[field] = field != "mpixels" ? parseFloat(value) : parseFloat(value) * 1000000
         return query
       }
     } else if (type == "date") {
       let regex = /^\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d\.\d+([+-][0-2]\d:[0-5]\d|Z$)/
 
       if (regex.test(value)) {
-        query[field] = new Date(value).toISOString()
+        query.term = {}
+        query.term[field] = new Date(value).toISOString()
         return query
       }
     } else if (type == "size") {
       let parsed = this.parseSize(value)
 
       if (parsed) {
-        query[field] = parsed
+        query.term = {}
+        query.term[field] = parsed
         return query
       }
     }
@@ -1536,7 +1754,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
         return query
       }
     } else if (value.startsWith(">")) {
-      let right = value.slice(2)
+      let right = value.slice(1)
       if (type == "number") {
         if (isNaN(right)) return false
 
@@ -1571,7 +1789,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
         return query
       }
     } else if (value.startsWith("<")) {
-      let right = value.slice(2)
+      let right = value.slice(1)
       if (type == "number") {
         if (isNaN(right)) return false
 
@@ -1635,6 +1853,10 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
             if (split.length > 2) split = [split.slice(0, -1).join("_"), split[split.length - 1]]
             let sortOrder = split.length == 2 ? split[1] : "desc"
 
+            if (split[0] == "rank") {
+              return { isOrderTag: true, rank: true, sortOrder }
+            }
+
             if (!SORTABLE_FIELDS[split[0]]) {
               return { ignore: true }
             }
@@ -1685,7 +1907,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
 
             if (!asQuery) return { ignore: true }
 
-            return { isOrderTag: false, asQuery: { term: asQuery } }
+            return { isOrderTag: false, asQuery: asQuery }
           }
 
         case "general":
@@ -1916,6 +2138,17 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
             }
           }
 
+        // This may not get done, this would be incredibly complicated and I'm not sure yet how I would go about doing it.
+        // case "inParent":
+        // case "inChild":
+        // case "inAncestor":
+        // case "inDescendant":
+        //   {
+        //     return {
+        //       [`next${tagName.charAt(0).toUpperCase()}${tagName.slice(1)}`]: true
+        //     }
+        //   }
+
         default:
           return { ignore: true }
       }
@@ -1948,6 +2181,8 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
               group.orderTags.push({ random: true })
             } else if (parsedMetaTag.randomSeed !== undefined) {
               group.orderTags.push({ randomSeed: parsedMetaTag.randomSeed })
+            } else if (parsedMetaTag.rank) {
+              group.orderTags.push(parsedMetaTag)
             } else {
               group.orderTags = group.orderTags.concat(parsedMetaTag.asQuery)
             }
@@ -2165,22 +2400,51 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
               if (randomSeedIndex != -1) {
                 group.orderTags.splice(randomSeedIndex, 1)
               }
+
+              let rankIndex = group.orderTags.findIndex(tag => tag.rank)
+
+              let sortOrder
+
+              if (rankIndex != -1) {
+                sortOrder = group.orderTags[rankIndex].sortOrder
+                group.orderTags.splice(rankIndex, 1)
+
+                req.query.bool.must.push({ range: { score: { gt: 0 } } })
+                req.query.bool.must.push({ range: { createdAt: { gte: new Date(Date.now() - 172800000) } } })
+
+                req.query = {
+                  script_score: {
+                    query: req.query,
+                    script: {
+                      lang: "painless",
+                      source: "Math.log(doc['score'].value) / params.log3 + (doc['createdAt'].value.getMillis() / 1000 - params.e6StartDate) / 35000",
+                      params: { log3: Math.log(3), e6StartDate: 1116936000 },
+                    }
+                  }
+                }
+              }
+
               req.sort = group.orderTags
+
+              if (rankIndex != -1) {
+                req.sort.unshift({ _score: sortOrder })
+              }
+
             } else {
               let randomScore = {}
 
               if (randomSeedIndex != -1) {
                 randomScore.seed = group.orderTags[randomSeedIndex].randomSeed
+              } else {
+                randomScore.seed = Date.now()
               }
 
               req.query = {
                 function_score: {
                   query: req.query,
                   random_score: randomScore
-                }
+                },
               }
-
-              delete req.sort
             }
           }
         }
@@ -2209,7 +2473,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
 
       return response
     } catch (e) {
-      console.log(e)
+      console.error(e)
       return { status: 500, message: "Internal server error" }
     }
   }

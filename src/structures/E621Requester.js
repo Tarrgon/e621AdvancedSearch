@@ -340,6 +340,43 @@ class E621Requester {
     }
   }
 
+  async updateTags(page = 1, endPageWithNoUpdates = 10) {
+    try {
+      let data = await this.addUrlToQueue(`tags.json?limit=100&%5Border%5D=updated_at&page=${page}`)
+  
+      let anyUpdated = page < endPageWithNoUpdates
+  
+      if (data.tags) return
+  
+      for (let tag of data) {
+        let existingTag = await this.utilities.getTag(tag.id)
+  
+        if (existingTag && existingTag.updatedAt >= new Date(tag.updated_at)) {
+          continue
+        }
+  
+        if (tag.post_count != 0) {
+          anyUpdated = true
+          if (existingTag) await this.utilities.updateTag({ id: tag.id, name: tag.name, category: tag.category, postCount: tag.post_count, updatedAt: new Date(tag.updated_at) })
+          else await this.utilities.addTag({ id: tag.id, name: tag.name, category: tag.category, postCount: tag.post_count, updatedAt: new Date(tag.updated_at) })
+        } else {
+          if (existingTag) {
+            anyUpdated = true
+            await this.utilities.deleteTag(tag.id)
+          }
+        }
+      }
+  
+      if (anyUpdated && page < 750) await this.updateTags(++page)
+    } catch (e) {
+      console.error(e)
+  
+      if (e.e621Moment == true || e.code == 500) {
+        return false
+      }
+    }
+  }
+
   async getTag(tagName) {
     try {
       console.log(`Getting new tag: "${tagName}"`)
@@ -347,7 +384,7 @@ class E621Requester {
       // if (d) return d
       let data = await this.addUrlToQueue(`tags.json?limit=1&search[name_matches]=${encodeURIComponent(tagName)}`)
       if (data && data[0]) {
-        return { id: data[0].id, name: data[0].name, category: data[0].category }
+        return { id: data[0].id, name: data[0].name, category: data[0].category, postCount: data[0].post_count, updatedAt: new Date(data[0].updated_at) }
       } else {
         return null
       }
@@ -367,7 +404,7 @@ class E621Requester {
       // if (d) return d
       let data = await this.addUrlToQueue(`tags.json?limit=1&search[id]=${id}`)
       if (data && data[0]) {
-        return { id: data[0].id, name: data[0].name, category: data[0].category }
+        return { id: data[0].id, name: data[0].name, category: data[0].category, postCount: data[0].post_count, updatedAt: new Date(data[0].updated_at) }
       } else {
         return null
       }

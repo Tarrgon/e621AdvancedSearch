@@ -20,6 +20,9 @@ async function handle(req, res) {
     // console.log(JSON.stringify(result))
     return res.json(result)
   } catch (e) {
+    console.error(e)
+
+    if (!e.status) return res.sendStatus(500)
     return res.status(e.status).send(e.message)
   }
 }
@@ -50,11 +53,11 @@ router.get("/tagrelationships", async (req, res) => {
     for (let tag of tags) {
       if (tag.trim() == "") continue
       let alias = await utils.getTagAliasByName(tag)
-      
+
       if (alias) {
         tag = (await utils.getTag(alias.consequentId)).name
       }
-      
+
       relationships[tag] = await utils.getDirectTagRelationships(tag.trim(), include)
     }
   }
