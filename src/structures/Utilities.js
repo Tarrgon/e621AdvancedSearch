@@ -1,9 +1,3 @@
-/**
- * TODO:
- * Add updating post count to tags
- * * This means when updating posts I need to add/subtract tag changes from post count as they aren't technically "updated"
- */
-
 const { Client } = require("@elastic/elasticsearch")
 const E621Requester = require("./E621Requester.js")
 const Tokenizer = require("./Tokenizer.js")
@@ -394,7 +388,7 @@ class Utilities {
 
         let newTag = tags.splice(index, 1)[0]
 
-        if (newTag.post_count <= 0 || (tag.category == newTag.category && tag.name == newTag.name)) continue
+        if (newTag.post_count <= 0 || (tag.category == newTag.category && tag.name == newTag.name && tag.post_count == newTag.post_count)) continue
 
         if (tag.category != newTag.category) {
           await this.updateTagCategoryEverywhere(newTag, tag.category, newTag.category)
@@ -890,6 +884,48 @@ class Utilities {
     return (await this.database.mget({ index: "posts", ids, _source: source })).docs.filter(d => d.found).map(d => d._source)
   }
 
+  async updateTagCounts(newPost, existingPost) {
+    let changes = []
+
+    if (!existingPost) {
+      for (let tag of newPost.flattenedTags) {
+        changes.push({ tagId: tag, change: 1 })
+      }
+    } else {
+      for (let tag of newPost.flattenedTags) {
+        if (!existingPost.flattenedTags.includes(tag)) changes.push({ tagId: tag, change: 1 })
+      }
+
+      for (let tag of existingPost.flattenedTags) {
+        if (!newPost.flattenedTags.includes(tag)) changes.push({ tagId: tag, change: -1 })
+      }
+    }
+
+    let bulk = []
+
+    for (let change of changes) {
+      bulk.push({ update: { _id: change.tagId.toString() } })
+      bulk.push({
+        script: {
+          lang: "painless",
+          source: "ctx._source.postCount += params.change",
+          params: {
+            change: change.change
+          }
+        }
+      })
+    }
+
+    if (bulk.length > 0) {
+      let res = await this.database.bulk({ index: "tags", operations: bulk })
+      if (res.errors) {
+        let now = Date.now()
+        console.error(`Bulk had errors, written to bulk-error-${now}.json`)
+        fs.writeFileSync(`./bulk-error-${now}.json`, JSON.stringify(res, null, 4))
+      }
+    }
+  }
+
   async addPost(post) {
     if (!post.id) {
       console.error("Post with no id attempted to be added")
@@ -903,6 +939,8 @@ class Utilities {
     })
 
     await this.updateRelationships(post)
+
+    await this.updateTagCounts(post)
   }
 
   async updatePost(post) {
@@ -911,8 +949,12 @@ class Utilities {
       return
     }
 
+    let existingPost = await this.getPost(post.id)
+
     await this.database.update({ index: "posts", id: post.id.toString(), doc: post })
     await this.updateRelationships(post)
+
+    await this.updateTagCounts(post, existingPost)
   }
 
   async bulkUpdatePosts(posts) {
