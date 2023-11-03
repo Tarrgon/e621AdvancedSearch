@@ -96,7 +96,7 @@ class E621Requester {
     }
   }
 
-  async checkForMisses(page = 1, endPageWithNoUpdates = 10) {
+  async checkForMisses(page = 1, endPageWithNoUpdates = 5) {
     try {
       let data = await this.addUrlToQueue(`posts.json?tags=order:change%20status:any&limit=320&page=${page}`)
 
@@ -178,7 +178,7 @@ class E621Requester {
     }
   }
 
-  async applyUpdates(page = 1, endPageWithNoUpdates = 10) {
+  async applyUpdates(page = 1, endPageWithNoUpdates = 5) {
     try {
       let anyUpdated = page < endPageWithNoUpdates
 
@@ -240,7 +240,7 @@ class E621Requester {
     }
   }
 
-  async updateTagAliases(page = 1, endPageWithNoUpdates = 10) {
+  async updateTagAliases(page = 1, endPageWithNoUpdates = 5) {
     try {
       let data = await this.addUrlToQueue(`tag_aliases.json?limit=100&%5Border%5D=updated_at&page=${page}`)
 
@@ -289,7 +289,7 @@ class E621Requester {
     }
   }
 
-  async updateTagImplications(page = 1, endPageWithNoUpdates = 10) {
+  async updateTagImplications(page = 1, endPageWithNoUpdates = 5) {
     try {
       let data = await this.addUrlToQueue(`tag_implications.json?limit=100&%5Border%5D=updated_at&page=${page}`)
 
@@ -339,7 +339,7 @@ class E621Requester {
     }
   }
 
-  async updateTags(page = 1, endPageWithNoUpdates = 10) {
+  async updateTags(page = 1, endPageWithNoUpdates = 5) {
     try {
       let data = await this.addUrlToQueue(`tags.json?limit=100&%5Border%5D=updated_at&page=${page}`)
   

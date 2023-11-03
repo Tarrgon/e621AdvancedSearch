@@ -7,6 +7,10 @@ async function handle(req, res) {
   let { query, q, limit, page } = (req.query || {})
   let { searchAfter } = (req.body || {})
 
+  if (!query && !q && req.body.query) {
+    query = req.body.query
+  }
+
   if (limit && !isNaN(limit)) {
     limit = parseInt(limit)
 
