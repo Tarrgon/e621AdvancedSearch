@@ -5,3 +5,7 @@ test.js
 test.json
 
 e621AdvancedSearch.meta.js
+
+*.user.js
+
+!e621AdvancedSearch.user.js

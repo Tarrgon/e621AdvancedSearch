@@ -3,7 +3,7 @@ const router = express.Router()
 
 let utils = null
 
-async function handle(req, res) {
+async function handlePostSearch(req, res) {
   let { query, q, limit, page } = (req.query || {})
   let { searchAfter } = (req.body || {})
 
@@ -31,8 +31,27 @@ async function handle(req, res) {
   }
 }
 
-router.get("/", handle)
-router.post("/", handle)
+router.get("/", handlePostSearch)
+router.post("/", handlePostSearch)
+
+async function handleTagSearch(req, res) {
+  let tags = req.body && req.body.tags ? req.body.tags : req.query?.tags?.split(" ") 
+
+  if (!tags || tags.length <= 0) return res.status(400).send("Tag query not present")
+
+  try {
+    let result = await utils.getTagsWithNames(tags)
+
+    return res.json(result)
+  } catch (e) {
+    console.error(e)
+
+    return res.sendStatus(500)
+  }
+}
+
+router.get("/tags", handleTagSearch)
+router.post("/tags", handleTagSearch)
 
 router.get("/tagrelationships", async (req, res) => {
   let include = req.query.include ? req.query.include.split(",") : ["children", "parents"]

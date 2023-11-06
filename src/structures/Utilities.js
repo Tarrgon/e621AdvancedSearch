@@ -2498,6 +2498,11 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
             return { status: 400, message: "Invalid page. Must be greater than 0" }
           }
           req.from = (searchAfter - 1) * limit
+
+          if (req.from >= 10000) {
+            return { status: 400, message: "Invalid page. (page - 1) * limit >= 10000" }
+          }
+
         } else {
           req.search_after = searchAfter
         }
