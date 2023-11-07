@@ -388,7 +388,13 @@ class Utilities {
 
         let newTag = tags.splice(index, 1)[0]
 
-        if (newTag.post_count <= 0 || (tag.category == newTag.category && tag.name == newTag.name && tag.post_count == newTag.post_count)) continue
+        if (newTag.post_count <= 0) {
+          bulk.push({ delete: { _id: newTag.id.toString() } })
+
+          continue
+        }
+
+        if (tag.category == newTag.category && tag.name == newTag.name && tag.postCount == newTag.post_count) continue
 
         if (tag.category != newTag.category) {
           await this.updateTagCategoryEverywhere(newTag, tag.category, newTag.category)
@@ -399,6 +405,8 @@ class Utilities {
       }
 
       for (let tag of tags) {
+        if (tag.post_count <= 0) continue
+
         bulk.push({ index: { _id: tag.id.toString() } })
         bulk.push({ id: tag.id, name: tag.name, category: tag.category, postCount: tag.post_count, updatedAt: tag.date })
       }
