@@ -2601,7 +2601,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
     // TODO: Batch the shit out of this, getting every tag and tag alias one at a time is way too slow.
 
     let idsToGet = relationships.map(r => r.antecedentId == tag.id ? r.consequentId : r.antecedentId)
-    
+
     if (idsToGet.length == 0) return {
       thisTag: tag,
       parents: [],
@@ -2611,20 +2611,22 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
     let antecedeOrConsequent = relationships.map(r => r.antecedentId == tag.id ? ({ antecede: true, tagId: r.consequentId }) : ({ antecede: false, tagId: r.antecedentId }))
     let tags = await this.getTagsWithIds(idsToGet)
 
-    let newTagIds = idsToGet.filter(id => !tags.find(t => t.id == id))
+    // This has never once gotten an existing tag.
 
-    for (let id of newTagIds) {
-      if (id == tag.id) continue
+    // let newTagIds = idsToGet.filter(id => !tags.find(t => t.id == id))
 
-      let t = await this.getNewTagById(id)
+    // for (let id of newTagIds) {
+    //   if (id == tag.id) continue
 
-      if (t) {
-        let isAntecede = antecedeOrConsequent.find(c => c.tagId == id).antecede
+    //   let t = await this.getNewTagById(id)
 
-        if (isAntecede) antecedes.push(t)
-        else consequents.push(t)
-      }
-    }
+    //   if (t) {
+    //     let isAntecede = antecedeOrConsequent.find(c => c.tagId == id).antecede
+
+    //     if (isAntecede) antecedes.push(t)
+    //     else consequents.push(t)
+    //   }
+    // }
 
     let aliases = await this.getTagAliasesWithNames(tags.map(t => t.name))
 
