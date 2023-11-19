@@ -37,7 +37,7 @@ async function getFavorites() {
 }
 
 async function getFavoritesOfUser(id) {
-  if (id == "me") return favorites.length > 0 ? favorites : [0]
+  if (id == "me") return favorites.length > 0 ? favorites : []
 
   return new Promise(resolve => {
     GM.xmlHttpRequest({

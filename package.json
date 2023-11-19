@@ -8,6 +8,7 @@
     "express": "^4.18.2",
     "filesize-parser": "^1.5.0",
     "gunzip-file": "^0.1.1",
+    "node-cache": "^5.1.2",
     "node-cron": "^3.0.2"
   },
   "scripts": {

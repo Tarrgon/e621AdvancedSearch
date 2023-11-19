@@ -5,6 +5,8 @@ const fs = require("fs")
 const csv = require("csv-parse")
 const cron = require("node-cron")
 const filesizeParser = require('filesize-parser')
+const NodeCache = require("node-cache")
+const nonExistentTagCache = new NodeCache({ useClones: false, stdTTL: 300, checkperiod: 120 })
 
 const TOKENS_TO_SKIP = ["~", "-"]
 const MODIFIERS = {
@@ -312,7 +314,7 @@ class Utilities {
     let tagAliasExport = await this.requester.getDatabaseExport(`tag_aliases-${dateString}.csv.gz`)
     let tagImplicationExport = await this.requester.getDatabaseExport(`tag_implications-${dateString}.csv.gz`)
 
-    this.tagCache = {}
+    this.updateTagCache = {}
 
     let time = Date.now()
     await this.processTagExport(tagExport)
@@ -354,7 +356,7 @@ class Utilities {
 
     console.log(`Completed database parsing took: ${Date.now() - startTime}ms`)
 
-    this.tagCache = null
+    this.updateTagCache = null
 
     this.processingExport = false
 
@@ -1196,16 +1198,14 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   async getTagsWithNames(names) {
     let tags = []
 
-    if (this.tagCache) {
+    if (this.updateTagCache) {
       for (let i = names.length - 1; i >= 0; i--) {
-        if (this.tagCache[names[i]]) {
-          tags.push(this.tagCache[names[i]])
+        if (this.updateTagCache[names[i]]) {
+          tags.push(this.updateTagCache[names[i]])
           names.splice(i, 1)
         }
       }
     }
-
-    let databaseTags = []
 
     for (let i = 0; i < names.length / 1024; i++) {
       let theseNames = names.slice(i * 1024, i * 1024 + 1024)
@@ -1220,14 +1220,12 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
         }
       })).hits.hits.map(t => t._source)
 
-      databaseTags = databaseTags.concat(dbTags)
+      tags = tags.concat(dbTags)
     }
 
-    tags = tags.concat(databaseTags)
-
-    if (this.tagCache) {
+    if (this.updateTagCache) {
       for (let tag of tags) {
-        this.tagCache[tag.name] = tag
+        this.updateTagCache[tag.name] = tag
       }
     }
 
@@ -1235,6 +1233,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   }
 
   async getOrAddTag(tagName) {
+    if (nonExistentTagCache.get(tagName)) return null
     let tag = await this.getTagByName(tagName)
     if (tag) return tag
 
@@ -1245,6 +1244,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   }
 
   async getOrAddTagById(id) {
+    if (nonExistentTagCache.get(id.toString())) return null
     let tag = await this.getTag(id)
 
     if (tag) return tag
@@ -1293,8 +1293,8 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   }
 
   async getTagByName(name) {
-    if (this.tagCache && this.tagCache[name]) {
-      return this.tagCache[name]
+    if (this.updateTagCache && this.updateTagCache[name]) {
+      return this.updateTagCache[name]
     }
 
     let tag = (await this.database.search({
@@ -1306,26 +1306,32 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
       }
     })).hits.hits[0]?._source
 
-    if (this.tagCache && tag) this.tagCache[name] = tag
+    if (this.updateTagCache && tag) this.updateTagCache[name] = tag
 
     return tag
   }
 
   async getNewTag(tagName) {
+    if (nonExistentTagCache.get(tagName)) return null
     let tag = await this.requester.getTag(tagName)
 
     if (tag) {
       await this.addTag(tag)
+    } else {
+      nonExistentTagCache.set(tagName, true)
     }
 
     return tag
   }
 
   async getNewTagById(id) {
+    if (nonExistentTagCache.get(id.toString())) return null
     let tag = await this.requester.getTagById(id)
 
     if (tag) {
       await this.addTag(tag)
+    } else {
+      nonExistentTagCache.set(id.toString(), true)
     }
 
     return tag
@@ -1552,6 +1558,28 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
         }
       }
     })).hits.hits[0]?._source
+  }
+
+  async getTagAliasesWithNames(names) {
+    let aliases = []
+
+    for (let i = 0; i < names.length / 1024; i++) {
+      let theseNames = names.slice(i * 1024, i * 1024 + 1024)
+
+      let dbAliases = (await this.database.search({
+        index: "tagaliases",
+        size: 1024,
+        query: {
+          bool: {
+            should: theseNames.map(name => ({ term: { name } }))
+          }
+        }
+      })).hits.hits.map(t => t._source)
+
+      aliases = aliases.concat(dbAliases)
+    }
+
+    return aliases
   }
 
   async addTagAlias(tagAlias) {
@@ -2571,35 +2599,76 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
     let consequents = []
 
     // TODO: Batch the shit out of this, getting every tag and tag alias one at a time is way too slow.
-    for (let relationship of relationships) {
-      if (relationship.antecedentId == tag.id) {
-        let t = await this.getTag(relationship.consequentId)
 
-        if (t) { // See: face_tuft. Angry
-          let alias = await this.getTagAliasByName(t.name)
-          if (alias) {
-            t = null //await this.getTag(alias.consequentId) ALAISES DO NOT TRANSFER THEIR IMPLICATIONS FOR SOME GODFORSAKEN REASON
-          }
-        } else {
-          t = await this.getNewTagById(relationship.consequentId)
-        }
+    let idsToGet = relationships.map(r => r.antecedentId == tag.id ? r.consequentId : r.antecedentId)
+    
+    if (idsToGet.length == 0) return {
+      thisTag: tag,
+      parents: [],
+      children: []
+    }
 
-        if (t && t.id != tag.id) antecedes.push(t)
-      } else {
-        let t = await this.getTag(relationship.antecedentId)
+    let antecedeOrConsequent = relationships.map(r => r.antecedentId == tag.id ? ({ antecede: true, tagId: r.consequentId }) : ({ antecede: false, tagId: r.antecedentId }))
+    let tags = await this.getTagsWithIds(idsToGet)
 
-        if (t) { // See: face_tuft. Angry
-          let alias = await this.getTagAliasByName(t.name)
-          if (alias) {
-            t = null //await this.getTag(alias.consequentId) ALAISES DO NOT TRANSFER THEIR IMPLICATIONS FOR SOME GODFORSAKEN REASON
-          }
-        } else {
-          t = await this.getNewTagById(relationship.antecedentId)
-        }
+    let newTagIds = idsToGet.filter(id => !tags.find(t => t.id == id))
 
-        if (t && t.id != tag.id) consequents.push(t)
+    for (let id of newTagIds) {
+      if (id == tag.id) continue
+
+      let t = await this.getNewTagById(id)
+
+      if (t) {
+        let isAntecede = antecedeOrConsequent.find(c => c.tagId == id).antecede
+
+        if (isAntecede) antecedes.push(t)
+        else consequents.push(t)
       }
     }
+
+    let aliases = await this.getTagAliasesWithNames(tags.map(t => t.name))
+
+    let withoutAliases = tags.filter(t => !aliases.find(a => a.name == t.name))
+
+    for (let t of withoutAliases) {
+      if (t.id == tag.id) continue
+
+      let isAntecede = antecedeOrConsequent.find(c => c.tagId == t.id).antecede
+
+      if (isAntecede) antecedes.push(t)
+      else consequents.push(t)
+
+    }
+
+    // for (let relationship of relationships) {
+    //   if (relationship.antecedentId == tag.id) {
+    //     let t = await this.getTag(relationship.consequentId)
+
+    //     if (t) { // See: face_tuft. Angry
+    //       let alias = await this.getTagAliasByName(t.name)
+    //       if (alias) {
+    //         t = null //await this.getTag(alias.consequentId) ALAISES DO NOT TRANSFER THEIR IMPLICATIONS FOR SOME GODFORSAKEN REASON
+    //       }
+    //     } else {
+    //       t = await this.getNewTagById(relationship.consequentId)
+    //     }
+
+    //     if (t && t.id != tag.id) antecedes.push(t)
+    //   } else {
+    //     let t = await this.getTag(relationship.antecedentId)
+
+    //     if (t) { // See: face_tuft. Angry
+    //       let alias = await this.getTagAliasByName(t.name)
+    //       if (alias) {
+    //         t = null //await this.getTag(alias.consequentId) ALAISES DO NOT TRANSFER THEIR IMPLICATIONS FOR SOME GODFORSAKEN REASON
+    //       }
+    //     } else {
+    //       t = await this.getNewTagById(relationship.antecedentId)
+    //     }
+
+    //     if (t && t.id != tag.id) consequents.push(t)
+    //   }
+    // }
 
     return {
       thisTag: tag,
