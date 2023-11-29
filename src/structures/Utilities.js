@@ -79,7 +79,7 @@ const META_TAGS_TO_FIELD_NAMES = {
 const META_TAGS = ["order", "user", "approver", "id", "score", "favcount", "favoritecount", "commentcount", "comment_count", "tagcount",
   "gentags", "arttags", "chartags", "copytags", "spectags", "invtags", "lortags", "loretags", "metatags", "rating", "type",
   "width", "height", "mpixels", "megapixels", "ratio", "filesize", "status", "date", "source", "ischild", "isparent", "parent", "hassource",
-  "ratinglocked", "notelocked", "md5", "duration", "inparent", "inchild", "inancestor", "indescendant"
+  "ratinglocked", "notelocked", "md5", "duration", "inparent", "inchild", "inancestor", "indescendant", "randseed"
 ]
 
 const TAG_CATEGORIES_TO_CATEGORY_ID = {
@@ -2509,7 +2509,9 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
               }
 
             } else {
-              let randomScore = {}
+              let randomScore = {
+                field: "_seq_no"
+              }
 
               if (randomSeedIndex != -1) {
                 randomScore.seed = group.orderTags[randomSeedIndex].randomSeed
@@ -2520,9 +2522,12 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
               req.query = {
                 function_score: {
                   query: req.query,
-                  random_score: randomScore
+                  random_score: randomScore,
+                  boost_mode: "replace"
                 },
               }
+
+              delete req.sort
             }
           }
         }
