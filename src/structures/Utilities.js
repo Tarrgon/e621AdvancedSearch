@@ -32,6 +32,7 @@ const SORTABLE_FIELDS = {
 
 const META_TAGS_TO_FIELD_NAMES = {
   order: "order",
+  customscore: "customScore",
   randseed: "randomSeed",
   user: "uploaderId",
   approver: "approverId",
@@ -1904,7 +1905,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
     }
   }
 
-  metaTagParser(tag) {
+  metaTagParser(tag, tokenizer) {
     let match = META_MATCH_REGEX.exec(tag)
 
     if (match) {
@@ -1913,13 +1914,20 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
       tagName = META_TAGS_TO_FIELD_NAMES[tagName]
 
       switch (tagName) {
-        case "randomSeed": {
-          let seed = parseInt(value)
+        case "randomSeed":
+          {
+            let seed = parseInt(value)
 
-          if (isNaN(seed)) return { ignore: true }
+            if (isNaN(seed)) return { ignore: true }
 
-          return { isOrderTag: true, randomSeed: seed }
-        }
+            return { isOrderTag: true, randomSeed: seed }
+          }
+
+        // I would like to add custom score functionality, but need to look into security of such a system.
+        // case "customScore":
+        //   {
+        //     return { ignore: true }
+        //   }
 
         case "order":
           {
@@ -2164,6 +2172,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
             }
             return { isOrderTag: false, asQuery }
           }
+          
         case "md5":
           {
             let asQuery = { term: {} }
@@ -2252,7 +2261,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
       } else if (token == ")") {
         currentGroupIndex.splice(currentGroupIndex.length - 1, 1)
       } else {
-        let parsedMetaTag = this.metaTagParser(token)
+        let parsedMetaTag = this.metaTagParser(token, tokenizer)
         if (parsedMetaTag) {
           if (parsedMetaTag.isOrderTag) {
             if (parsedMetaTag.random) {
