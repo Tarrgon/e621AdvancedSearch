@@ -19,6 +19,9 @@ const SORTABLE_FIELDS = {
   score: "score",
   favcount: "favoriteCount",
   tagcount: "tagCount",
+  nonimplicatedtagcount: "nonImplicatedTagCount",
+  topleveltagcount: "nonImplicatedTagCount",
+  tltagcount: "nonImplicatedTagCount",
   commentcount: "commentCount",
   comment_count: "commentCount",
   mpixels: "mpixels",
@@ -54,6 +57,9 @@ const META_TAGS_TO_FIELD_NAMES = {
   rating: "rating",
   type: "fileType",
   tagcount: "tagCount",
+  nonimplicatedtagcount: "nonImplicatedTagCount",
+  topleveltagcount: "nonImplicatedTagCount",
+  tltagcount: "nonImplicatedTagCount",
   width: "width",
   height: "height",
   mpixels: "mpixels",
@@ -77,7 +83,8 @@ const META_TAGS_TO_FIELD_NAMES = {
   indescendant: "inDescendant"
 }
 
-const META_TAGS = ["order", "user", "approver", "id", "score", "favcount", "favoritecount", "commentcount", "comment_count", "tagcount",
+const META_TAGS = ["order", "user", "approver", "id", "score", "favcount", "favoritecount", "commentcount", "comment_count", 
+  "nonimplicatedtagcount", "topleveltagcount", "tltagcount", "tagcount",
   "gentags", "arttags", "chartags", "copytags", "spectags", "invtags", "lortags", "loretags", "metatags", "rating", "type",
   "width", "height", "mpixels", "megapixels", "ratio", "filesize", "status", "date", "source", "ischild", "isparent", "parent", "hassource",
   "ratinglocked", "notelocked", "md5", "duration", "inparent", "inchild", "inancestor", "indescendant", "randseed"
@@ -446,17 +453,46 @@ class Utilities {
     if (tags.length > 0) await update(tags)
   }
 
+  async countNonImplicatedTags(tags) {
+    let nonImplicatedCount = tags.length
+
+    let query = {
+      bool: {
+        should: tags.map(id => ({ term: { antecedentId: id } })),
+        minimum_should_match: 1
+      }
+    }
+
+    let res = await this.database.search({
+      size: 10000, index: "tagimplications", sort: { id: "desc" }, query
+    })
+
+    let relationships = res.hits.hits.map(hit => hit._source)
+
+    let skip = []
+
+    for (let relationship of relationships) {
+      if (!skip.includes(relationship.antecedentId)) {
+        nonImplicatedCount--
+        skip.push(relationship.antecedentId)
+      }
+    }
+
+    return nonImplicatedCount
+  }
+
   async createPost(id, tags, uploaderId, approverId, createdAt, updatedAt, md5, sources, rating, width, height, duration,
     favoriteCount, score, parentId, children, fileType, fileSize, commentCount, isDeleted, isPending, isFlagged, isRatingLocked,
     isStatusLocked, isNoteLocked) {
 
     return new Promise((resolve) => {
-      this.expandTagsToArray(tags).then(([tags, flatTags]) => {
+      this.expandTagsToArray(tags).then(async ([tagsAsArray, flatTags]) => {
         resolve({
           id,
-          tags,
+          tags: tagsAsArray,
           flattenedTags: flatTags,
           tagCount: flatTags.length,
+          nonImplicatedTagCount: await this.countNonImplicatedTags(flatTags),
           uploaderId: isNaN(uploaderId) ? null : uploaderId,
           approverId: isNaN(approverId) ? null : approverId,
           createdAt: new Date(createdAt),
@@ -892,6 +928,7 @@ class Utilities {
   }
 
   async getPostsWithIds(ids, source = true) {
+    if (ids.length == 0) return []
     return (await this.database.mget({ index: "posts", ids, _source: source })).docs.filter(d => d.found).map(d => d._source)
   }
 
@@ -1193,6 +1230,7 @@ else if (!ctx._source.children.contains(params.children[0])) ctx._source.childre
   }
 
   async getTagsWithIds(ids) {
+    if (ids.length == 0) return []
     return (await this.database.mget({ index: "tags", ids })).docs.filter(d => d.found).map(d => d._source)
   }
 
@@ -1547,6 +1585,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
   }
 
   async getTagAliasesWithIds(ids) {
+    if (ids.length == 0) return []
     return (await this.database.mget({ index: "tagaliases", ids })).docs.filter(d => d.found).map(d => d._source)
   }
 
@@ -1619,6 +1658,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
   }
 
   async getTagImplicationsWithIds(ids) {
+    if (ids.length == 0) return []
     return (await this.database.mget({ index: "tagimplications", ids })).docs.filter(d => d.found).map(d => d._source)
   }
 
@@ -2039,41 +2079,16 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
             }
           }
 
+        case "nonImplicatedTagCount":
         case "tagCount":
           {
             if (value == "") return { ignore: true }
 
-            let op = "=="
-            if (value == "") return { ignore: true }
+            let asQuery = this.parseRangeSyntax(value, tagName, "number")
 
-            if (isNaN(value)) {
-              if (value.startsWith(">") || value.startsWith("<")) {
-                op = value.slice(0, 1)
-                value = value.slice(1)
-              } else if (value.startsWith(">=") || value.startsWith("<=")) {
-                op = value.slice(0, 2)
-                value = value.slice(2)
-              } else {
-                return { ignore: true }
-              }
+            if (!asQuery) return { ignore: true }
 
-              if (isNaN(value)) return { ignore: true }
-            }
-
-            return {
-              isOrderTag: false,
-              asQuery: {
-                script: {
-                  script: {
-                    lang: "painless",
-                    source: `doc.flattenedTags.size() ${op} params.value`,
-                    params: {
-                      value: parseInt(value)
-                    }
-                  }
-                }
-              }
-            }
+            return { isOrderTag: false, asQuery: asQuery }
           }
 
         case "hasSource":
@@ -2172,7 +2187,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
             }
             return { isOrderTag: false, asQuery }
           }
-          
+
         case "md5":
           {
             let asQuery = { term: {} }
