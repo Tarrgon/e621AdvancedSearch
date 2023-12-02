@@ -2471,6 +2471,38 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
     return curQuery
   }
 
+  async countSearch(query) {
+    try {
+      let success, group
+
+      let req = {
+        index: "posts"
+      }
+
+      if (query) {
+        [success, group] = this.getGroups(query.trim())
+
+        if (!success) {
+          console.log(group)
+          return group
+        }
+
+        if (group != null) {
+          await this.convertToTagIds(group)
+
+          req.query = { bool: await this.buildQueryFromGroup(group) }
+        }
+      }
+
+      let res = await this.database.count(req)
+
+      return res.count
+    } catch (e) {
+      console.error(e)
+      return { status: 500, message: "Internal server error" }
+    }
+  }
+
   async performSearch(query, limit = 50, searchAfter = null) {
     try {
       let success, group

@@ -34,8 +34,30 @@ async function handlePostSearch(req, res) {
 router.get("/", handlePostSearch)
 router.post("/", handlePostSearch)
 
+async function handleCountSearch(req, res) {
+  let { query, q } = (req.query || {})
+
+  if (!query && !q && req.body.query) {
+    query = req.body.query
+  }
+
+  try {
+    let result = await utils.countSearch(query ? query : q)
+    // console.log(JSON.stringify(result))
+    return res.json({ count: result })
+  } catch (e) {
+    console.error(e)
+
+    if (!e.status) return res.sendStatus(500)
+    return res.status(e.status).send(e.message)
+  }
+}
+
+router.get("/count", handleCountSearch)
+router.post("/count", handleCountSearch)
+
 async function handleTagSearch(req, res) {
-  let tags = req.body && req.body.tags ? req.body.tags : req.query?.tags?.split(" ") 
+  let tags = req.body && req.body.tags ? req.body.tags : req.query?.tags?.split(" ")
 
   if (!tags || tags.length <= 0) return res.status(400).send("Tag query not present")
 
