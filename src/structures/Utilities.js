@@ -83,7 +83,7 @@ const META_TAGS_TO_FIELD_NAMES = {
   indescendant: "inDescendant"
 }
 
-const META_TAGS = ["order", "user", "approver", "id", "score", "favcount", "favoritecount", "commentcount", "comment_count", 
+const META_TAGS = ["order", "user", "approver", "id", "score", "favcount", "favoritecount", "commentcount", "comment_count",
   "nonimplicatedtagcount", "topleveltagcount", "tltagcount", "tagcount",
   "gentags", "arttags", "chartags", "copytags", "spectags", "invtags", "lortags", "loretags", "metatags", "rating", "type",
   "width", "height", "mpixels", "megapixels", "ratio", "filesize", "status", "date", "source", "ischild", "isparent", "parent", "hassource",
@@ -2022,7 +2022,6 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
         case "height":
         case "mpixels":
         case "fileSize":
-        case "createdAt":
         case "duration":
         case "parentId":
         case "ratio":
@@ -2030,6 +2029,17 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
             if (value == "") return { ignore: true }
 
             let asQuery = this.parseRangeSyntax(value, tagName, "number")
+
+            if (!asQuery) return { ignore: true }
+
+            return { isOrderTag: false, asQuery: asQuery }
+          }
+
+        case "createdAt":
+          {
+            if (value == "") return { ignore: true }
+
+            let asQuery = this.parseRangeSyntax(value, tagName, "date")
 
             if (!asQuery) return { ignore: true }
 
