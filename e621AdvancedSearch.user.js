@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         e621 Advanced Search
 // @namespace    e621advanced.search
-// @version      0.2
+// @version      0.3
 // @description  A much more powerful search syntax for e621
 // @author       DefinitelyNotAFurry4
 // @match        https://e621.net/*
@@ -37,7 +37,7 @@ async function getFavorites() {
 }
 
 async function getFavoritesOfUser(id) {
-  if (id == "me") return favorites.length > 0 ? favorites : []
+  if (id == "me") return favorites.length > 0 ? favorites : [0]
 
   return new Promise(resolve => {
     GM.xmlHttpRequest({
@@ -268,7 +268,7 @@ async function executeSearch(searchText, page = null) {
 
   searchText = await replaceAsync(searchText, new RegExp(/set:([^\s]+)/g), async (match, id) => {
     let ids = await getPostIdsInSet(id)
-    
+
     if (ids.length > 0) return `( id:${ids.join(" ~ id:")} )`
     else return ""
   })
@@ -298,7 +298,7 @@ async function executeSearch(searchText, page = null) {
 
     let req = {
       method: "POST",
-      url: `https://search.yiff.today/?query=${searchText}${page != null && searchData.searchAfter == null ? `&page=${page}` : ""}&limit=70`,
+      url: `https://search.yiff.today/?limit=70${page != null && searchData.searchAfter == null ? `&page=${page}` : ""}`,
       onload: function (response) {
         let data = JSON.parse(response.responseText)
 
@@ -324,10 +324,13 @@ async function executeSearch(searchText, page = null) {
     }
 
     if (searchData.searchAfter != null) {
-      req.data = JSON.stringify({ searchAfter: searchData.searchAfter })
-      req.headers = {
-        "Content-Type": "application/json"
-      }
+      req.data = JSON.stringify({ query: searchText, searchAfter: searchData.searchAfter })
+    } else {
+      req.data = JSON.stringify({ query: searchText })
+    }
+      
+    req.headers = {
+      "Content-Type": "application/json"
     }
 
     GM.xmlHttpRequest(req)
