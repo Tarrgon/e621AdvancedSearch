@@ -2650,7 +2650,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
 
       if (reverse) {
         for (let [key, order] of Object.entries(req.sort)) {
-          req.sort[key] = !order
+          req.sort[key] = order == "asc" ? "desc" : "asc"
         }
       }
 
