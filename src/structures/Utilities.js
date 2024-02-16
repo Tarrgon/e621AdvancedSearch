@@ -37,6 +37,7 @@ const META_TAGS_TO_FIELD_NAMES = {
   order: "order",
   customscore: "customScore",
   randseed: "randomSeed",
+  rankdate: "rankDate",
   user: "uploaderId",
   approver: "approverId",
   id: "id",
@@ -87,7 +88,7 @@ const META_TAGS = ["order", "user", "approver", "id", "score", "favcount", "favo
   "nonimplicatedtagcount", "topleveltagcount", "tltagcount", "tagcount",
   "gentags", "arttags", "chartags", "copytags", "spectags", "invtags", "lortags", "loretags", "metatags", "rating", "type",
   "width", "height", "mpixels", "megapixels", "ratio", "filesize", "status", "date", "source", "ischild", "isparent", "parent", "hassource",
-  "ratinglocked", "notelocked", "md5", "duration", "inparent", "inchild", "inancestor", "indescendant", "randseed"
+  "ratinglocked", "notelocked", "md5", "duration", "inparent", "inchild", "inancestor", "indescendant", "randseed", "rankdate"
 ]
 
 const TAG_CATEGORIES_TO_CATEGORY_ID = {
@@ -1963,6 +1964,15 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
             return { isOrderTag: true, randomSeed: seed }
           }
 
+        case "rankDate":
+          {
+            let date = new Date(value)
+
+            if (!date) return { ignore: true }
+
+            return { isOrderTag: true, rankDate: date }
+          }
+
         // I would like to add custom score functionality, but need to look into security of such a system.
         // case "customScore":
         //   {
@@ -2295,6 +2305,8 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
               group.orderTags.push({ randomSeed: parsedMetaTag.randomSeed })
             } else if (parsedMetaTag.rank) {
               group.orderTags.push(parsedMetaTag)
+            } else if (parsedMetaTag.rankDate !== undefined) {
+              group.orderTags.push({ rankDate: parsedMetaTag.rankDate })
             } else {
               group.orderTags = group.orderTags.concat(parsedMetaTag.asQuery)
             }
@@ -2513,7 +2525,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
     }
   }
 
-  async performSearch(query, limit = 50, searchAfter = null) {
+  async performSearch(query, limit = 50, searchAfter = null, reverse = false) {
     try {
       let success, group
 
@@ -2539,6 +2551,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
           if (group.orderTags.length > 0) {
             let randomIndex = group.orderTags.findIndex(tag => tag.random)
             let randomSeedIndex = group.orderTags.findIndex(tag => tag.randomSeed !== undefined)
+            let rankDateIndex = group.orderTags.findIndex(tag => tag.rankDate !== undefined)
 
             if (randomIndex == -1) {
               if (randomSeedIndex != -1) {
@@ -2550,11 +2563,19 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
               let sortOrder
 
               if (rankIndex != -1) {
+
+                let date = new Date(Date.now() - 172800000)
+
+                if (rankDateIndex != -1) {
+                  date = group.orderTags[rankDateIndex].rankDate
+                  group.orderTags.splice(rankDateIndex, 1)
+                }
+
                 sortOrder = group.orderTags[rankIndex].sortOrder
                 group.orderTags.splice(rankIndex, 1)
 
                 req.query.bool.must.push({ range: { score: { gt: 0 } } })
-                req.query.bool.must.push({ range: { createdAt: { gte: new Date(Date.now() - 172800000) } } })
+                req.query.bool.must.push({ range: { createdAt: { gte: date } } })
 
                 req.query = {
                   script_score: {
@@ -2566,6 +2587,10 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
                     }
                   }
                 }
+              } else {
+                if (rankDateIndex != -1) {
+                  group.orderTags.splice(rankDateIndex, 1)
+                }
               }
 
               req.sort = group.orderTags
@@ -2575,6 +2600,10 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
               }
 
             } else {
+              if (rankDateIndex != -1) {
+                group.orderTags.splice(rankDateIndex, 1)
+              }
+
               let randomScore = {
                 field: "_seq_no"
               }
@@ -2599,6 +2628,10 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
         }
       }
 
+      if (!req.query) {
+        req.query = { bool: { must_not: [{ term: { isDeleted: true } }] } }
+      }
+
       if (searchAfter) {
         if (typeof (searchAfter) == "number") {
           if (searchAfter <= 0) {
@@ -2612,6 +2645,12 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
 
         } else {
           req.search_after = searchAfter
+        }
+      }
+
+      if (reverse) {
+        for (let [key, order] of Object.entries(req.sort)) {
+          req.sort[key] = !order
         }
       }
 

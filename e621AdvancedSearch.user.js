@@ -21,36 +21,36 @@ let searchData = {
   loading: false
 }
 
-let favorites = []
+// let favorites = []
 
-async function getFavorites() {
-  return new Promise(resolve => {
-    GM.xmlHttpRequest({
-      method: "GET",
-      url: "https://e621.net/favorites.json",
-      onload: function (response) {
-        favorites = JSON.parse(response.responseText).posts.map(p => p.id)
-        resolve()
-      }
-    })
-  })
-}
+// async function getFavorites() {
+//   return new Promise(resolve => {
+//     GM.xmlHttpRequest({
+//       method: "GET",
+//       url: "https://e621.net/favorites.json",
+//       onload: function (response) {
+//         favorites = JSON.parse(response.responseText).posts.map(p => p.id)
+//         resolve()
+//       }
+//     })
+//   })
+// }
 
-async function getFavoritesOfUser(id) {
-  if (id == "me") return favorites.length > 0 ? favorites : [0]
+// async function getFavoritesOfUser(id) {
+//   if (id == "me") return favorites.length > 0 ? favorites : [0]
 
-  return new Promise(resolve => {
-    GM.xmlHttpRequest({
-      method: "GET",
-      url: `https://e621.net/favorites.json?user_id=${id}`,
-      onload: function (response) {
-        if (response.status == 403 || response.status == 404) return resolve([0])
-        let res = JSON.parse(response.responseText).posts.map(p => p.id)
-        resolve(res.length > 0 ? res : [0])
-      }
-    })
-  })
-}
+//   return new Promise(resolve => {
+//     GM.xmlHttpRequest({
+//       method: "GET",
+//       url: `https://e621.net/favorites.json?user_id=${id}`,
+//       onload: function (response) {
+//         if (response.status == 403 || response.status == 404) return resolve([0])
+//         let res = JSON.parse(response.responseText).posts.map(p => p.id)
+//         resolve(res.length > 0 ? res : [0])
+//       }
+//     })
+//   })
+// }
 
 async function getPostIdsInPool(id) {
   return new Promise(resolve => {
@@ -264,8 +264,6 @@ async function replaceAsync(str, regex, asyncFn) {
 async function executeSearch(searchText, page = null) {
   searchData.loading = true
 
-  await getFavorites()
-
   searchText = await replaceAsync(searchText, new RegExp(/set:([^\s]+)/g), async (match, id) => {
     let ids = await getPostIdsInSet(id)
 
@@ -280,12 +278,12 @@ async function executeSearch(searchText, page = null) {
     else return ""
   })
 
-  searchText = await replaceAsync(searchText, new RegExp(/fav:!?([^\s]+)/g), async (match, id) => {
-    let ids = await getFavoritesOfUser(id)
+  // searchText = await replaceAsync(searchText, new RegExp(/fav:!?([^\s]+)/g), async (match, id) => {
+  //   let ids = await getFavoritesOfUser(id)
 
-    if (ids.length > 0) return `( id:${ids.join(" ~ id:")} )`
-    else return ""
-  })
+  //   if (ids.length > 0) return `( id:${ids.join(" ~ id:")} )`
+  //   else return ""
+  // })
 
   if (searchData.searchText != searchText) {
     searchData.searchAfter = null
