@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         e621 Advanced Search
 // @namespace    e621advanced.search
-// @version      0.3
+// @version      0.4
 // @description  A much more powerful search syntax for e621
 // @author       DefinitelyNotAFurry4
 // @match        https://e621.net/*
@@ -161,7 +161,7 @@ function createPost(post, searchText) {
   article.setAttribute("data-file-ext", post.fileType)
   article.setAttribute("data-score", `${post.score}`)
   article.setAttribute("data-fav-count", `${post.favoriteCount}`)
-  article.setAttribute("data-is-favorited", favorites.includes(post.id))
+  article.setAttribute("data-is-favorited", false)//favorites.includes(post.id))
   article.setAttribute("data-file-url", post.fileUrl)
   article.setAttribute("data-large-file-url", post.sampleUrl)
   article.setAttribute("data-preview-file-url", post.previewUrl)
