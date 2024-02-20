@@ -2525,6 +2525,23 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
     }
   }
 
+  async resolveAliases(query) {
+    let tokenizer = new Tokenizer(query)
+
+    let res = ""
+    
+    for (let token of tokenizer) {
+      if (!["-", "-(", "(", ")", "~"].includes(token)) {
+        res += ((await this.getAliasOrTag(token))?.name ?? token) + " "
+      } else {
+        if (token == "-") res += token
+        else res += token + " "
+      }
+    }
+
+    return res.trim()
+  }
+
   async performSearch(query, limit = 50, searchAfter = null, reverse = false) {
     try {
       let success, group

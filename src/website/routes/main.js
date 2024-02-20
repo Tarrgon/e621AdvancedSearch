@@ -116,6 +116,27 @@ router.get("/tagrelationships", async (req, res) => {
   return res.json(relationships)
 })
 
+async function handleTagAliases(req, res) {
+  let { query, q } = (req.query || {})
+
+  if (!query && !q && req.body.query) {
+    query = req.body.query
+  }
+
+  try {
+    let result = await utils.resolveAliases(query ? query : q)
+
+    return res.send(result)
+  } catch (e) {
+    console.error(e)
+
+    return res.sendStatus(500)
+  }
+}
+
+router.get("/resolvealiases", handleTagAliases)
+router.post("/resolvealiases", handleTagAliases)
+
 module.exports = (u) => {
   utils = u
   return router
