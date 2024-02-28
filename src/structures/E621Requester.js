@@ -341,7 +341,7 @@ class E621Requester {
 
   async updateTags(page = 1, endPageWithNoUpdates = 5) {
     try {
-      let data = await this.addUrlToQueue(`tags.json?search%5Border%5D=updated_at&limit=100&page=${page}`)
+      let data = await this.addUrlToQueue(`tags.json?search%5Border%5D=updated_at&limit=100&page=${page}&search%5Bhide_empty%5D=0`)
   
       let anyUpdated = page < endPageWithNoUpdates
   
@@ -381,7 +381,7 @@ class E621Requester {
       console.log(`Getting new tag: "${tagName}"`)
       // let d = await this.utilities.getTagByName(tagName)
       // if (d) return d
-      let data = await this.addUrlToQueue(`tags.json?limit=1&search[name_matches]=${encodeURIComponent(tagName)}`)
+      let data = await this.addUrlToQueue(`tags.json?limit=1&search[name_matches]=${encodeURIComponent(tagName)}&search%5Bhide_empty%5D=0`)
       if (data && data[0]) {
         return { id: data[0].id, name: data[0].name, category: data[0].category, postCount: data[0].post_count, updatedAt: new Date(data[0].updated_at) }
       } else {
@@ -401,7 +401,7 @@ class E621Requester {
       console.log(`Getting new tag by id: ${id}`)
       // let d = await this.utilities.getTagByName(tagName)
       // if (d) return d
-      let data = await this.addUrlToQueue(`tags.json?limit=1&search[id]=${id}`)
+      let data = await this.addUrlToQueue(`tags.json?limit=1&search[id]=${id}&search%5Bhide_empty%5D=0`)
       if (data && data[0]) {
         return { id: data[0].id, name: data[0].name, category: data[0].category, postCount: data[0].post_count, updatedAt: new Date(data[0].updated_at) }
       } else {
