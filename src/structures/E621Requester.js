@@ -242,7 +242,7 @@ class E621Requester {
 
   async updateTagAliases(page = 1, endPageWithNoUpdates = 5) {
     try {
-      let data = await this.addUrlToQueue(`tag_aliases.json?limit=100&%5Border%5D=updated_at&page=${page}`)
+      let data = await this.addUrlToQueue(`tag_aliases.json?search%5Border%5D=updated_at&limit=100&page=${page}`)
 
       let anyUpdated = page < endPageWithNoUpdates
 
@@ -291,7 +291,7 @@ class E621Requester {
 
   async updateTagImplications(page = 1, endPageWithNoUpdates = 5) {
     try {
-      let data = await this.addUrlToQueue(`tag_implications.json?limit=100&%5Border%5D=updated_at&page=${page}`)
+      let data = await this.addUrlToQueue(`tag_implications.json?search%5Border%5D=updated_at&limit=100&page=${page}`)
 
       let anyUpdated = page < endPageWithNoUpdates
 
@@ -341,7 +341,7 @@ class E621Requester {
 
   async updateTags(page = 1, endPageWithNoUpdates = 5) {
     try {
-      let data = await this.addUrlToQueue(`tags.json?limit=100&%5Border%5D=updated_at&page=${page}`)
+      let data = await this.addUrlToQueue(`tags.json?search%5Border%5D=updated_at&limit=100&page=${page}`)
   
       let anyUpdated = page < endPageWithNoUpdates
   
