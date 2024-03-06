@@ -171,6 +171,79 @@ class Utilities {
     // // await this.database.indices.delete({ index: "hangingrelationships" })
     */
 
+    // ;(() => {
+    //   new Promise(async () => {
+    //     let update = async (posts) => {
+    //       let now = Date.now()
+          
+    //       let bulk = []
+    //       for (let post of posts) {
+    //         let { nonImplicatedTagCount, perCategoryNonImplicatedTagCount } = await this.countNonImplicatedTags(post.tags.flat(), post.tags)
+    
+    //         bulk.push({ update: { _id: post.id.toString() } })
+    //         bulk.push({ doc: { perCategoryNonImplicatedTagCount, nonImplicatedTagCount } })
+    //       }
+    
+    //       if (bulk.length > 0) {
+    //         let res = await this.database.bulk({ index: "posts", operations: bulk })
+    //         if (res.errors) {
+    //           let now = Date.now()
+    //           console.error(`Bulk had errors, written to bulk-error-${now}.json`)
+    //           fs.writeFileSync(`./bulk-error-${now}.json`, JSON.stringify(res, null, 4))
+    //         }
+    //       }
+    
+    //       console.log(`Operation took ${Date.now() - now}ms`)
+    //     }
+    
+    //     let posts = []
+    
+    //     console.log("Starting")
+    //     let pointInTime = await this.database.openPointInTime({ index: "posts", keep_alive: "5m" })
+    
+    //     let res = await this.database.search({
+    //       size: 1024, sort: { id: "desc" },
+    //       pit: {
+    //         id: pointInTime.id,
+    //         keep_alive: "5m"
+    //       },
+    //       query: {
+    //         match_all: {}
+    //       }
+    //     })
+    
+    //     posts = posts.concat(res.hits.hits.map(t => t._source))
+    
+    //     while (res.hits.hits.length > 0) {
+    //       res = await this.database.search({
+    //         size: 1024, sort: { id: "desc" }, search_after: res.hits.hits[res.hits.hits.length - 1].sort,
+    //         pit: {
+    //           id: pointInTime.id,
+    //           keep_alive: "5m"
+    //         }, query: {
+    //           match_all: {}
+    //         }
+    //       })
+    
+    //       posts = posts.concat(res.hits.hits.map(t => t._source))
+    
+    //       if (posts.length >= 10000) {
+    //         await update(posts)
+    
+    //         posts.length = 0
+    //       }
+    //     }
+    
+    //     if (posts.length > 0) await update(posts)
+    
+    //     await this.database.closePointInTime({ id: pointInTime.id })
+    
+    //     console.log("ALL DONE!")
+    //   })
+    // })()
+
+    // console.log("Proceeding")
+
     let postsExists = await this.database.indices.exists({ index: "posts" })
     if (!postsExists) {
       await this.database.indices.create({
@@ -2762,6 +2835,142 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
       if (res.hits.hits.length > 0) response.searchAfter = res.hits.hits[res.hits.hits.length - 1].sort
 
       return response
+    } catch (e) {
+      console.error(e)
+      return { status: 500, message: "Internal server error" }
+    }
+  }
+
+  async performSearch(query, limit = 50, searchAfter = null, reverse = false) {
+    try {
+      let success, group
+
+      let req = {
+        size: limit, index: "posts", sort: { id: "desc" }, _source_excludes: ["flattenedTags"]
+      }
+
+      if (query) {
+        [success, group] = this.getGroups(query.trim())
+
+        if (!success) {
+          console.log(group)
+          return group
+        }
+
+        if (group != null) {
+          await this.convertToTagIds(group)
+
+          let databaseQuery = await this.buildQueryFromGroup(group)
+
+          req.query = { bool: databaseQuery }
+
+          if (group.orderTags.length > 0) {
+            let randomIndex = group.orderTags.findIndex(tag => tag.random)
+            let randomSeedIndex = group.orderTags.findIndex(tag => tag.randomSeed !== undefined)
+            let rankDateIndex = group.orderTags.findIndex(tag => tag.rankDate !== undefined)
+
+            if (randomIndex == -1) {
+              if (randomSeedIndex != -1) {
+                group.orderTags.splice(randomSeedIndex, 1)
+              }
+
+              let rankIndex = group.orderTags.findIndex(tag => tag.rank)
+
+              let sortOrder
+
+              if (rankIndex != -1) {
+
+                let date = new Date(Date.now() - 172800000)
+
+                if (rankDateIndex != -1) {
+                  date = group.orderTags[rankDateIndex].rankDate
+                  group.orderTags.splice(rankDateIndex, 1)
+                }
+
+                sortOrder = group.orderTags[rankIndex].sortOrder
+                group.orderTags.splice(rankIndex, 1)
+
+                req.query.bool.must.push({ range: { score: { gt: 0 } } })
+                req.query.bool.must.push({ range: { createdAt: { gte: date } } })
+
+                req.query = {
+                  script_score: {
+                    query: req.query,
+                    script: {
+                      lang: "painless",
+                      source: "Math.log(doc['score'].value) / params.log3 + (doc['createdAt'].value.getMillis() / 1000 - params.e6StartDate) / 35000",
+                      params: { log3: Math.log(3), e6StartDate: 1116936000 },
+                    }
+                  }
+                }
+              } else {
+                if (rankDateIndex != -1) {
+                  group.orderTags.splice(rankDateIndex, 1)
+                }
+              }
+
+              req.sort = group.orderTags
+
+              if (rankIndex != -1) {
+                req.sort.unshift({ _score: sortOrder })
+              }
+
+            } else {
+              if (rankDateIndex != -1) {
+                group.orderTags.splice(rankDateIndex, 1)
+              }
+
+              let randomScore = {
+                field: "_seq_no"
+              }
+
+              if (randomSeedIndex != -1) {
+                randomScore.seed = group.orderTags[randomSeedIndex].randomSeed
+              } else {
+                randomScore.seed = Date.now()
+              }
+
+              req.query = {
+                function_score: {
+                  query: req.query,
+                  random_score: randomScore,
+                  boost_mode: "replace"
+                },
+              }
+
+              delete req.sort
+            }
+          }
+        }
+      }
+
+      if (!req.query) {
+        req.query = { bool: { must_not: [{ term: { isDeleted: true } }] } }
+      }
+
+      if (searchAfter) {
+        if (typeof (searchAfter) == "number") {
+          if (searchAfter <= 0) {
+            return { status: 400, message: "Invalid page. Must be greater than 0" }
+          }
+          req.from = (searchAfter - 1) * limit
+
+          if (req.from >= 10000) {
+            return { status: 400, message: "Invalid page. (page - 1) * limit >= 10000" }
+          }
+
+        } else {
+          req.search_after = searchAfter
+        }
+      }
+
+      if (reverse) {
+        for (let [key, order] of Object.entries(req.sort)) {
+          req.sort[key] = order == "asc" ? "desc" : "asc"
+        }
+      }
+
+      return req
     } catch (e) {
       console.error(e)
       return { status: 500, message: "Internal server error" }

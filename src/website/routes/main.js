@@ -40,6 +40,43 @@ async function handlePostSearch(req, res) {
 router.get("/", handlePostSearch)
 router.post("/", handlePostSearch)
 
+async function handleDefine(req, res) {
+  let { query, q, limit, page, reverse } = (req.query || {})
+  let { searchAfter } = (req.body || {})
+
+  if (!query && !q && req.body.query) {
+    query = req.body.query
+  }
+
+  if (limit != null && !isNaN(limit)) {
+    limit = parseInt(limit)
+
+    if (isNaN(limit)) limit = null
+    else if (limit <= 0) limit = 1
+    else if (limit > 320) limit = 320
+  }
+
+  if (reverse != null) {
+    reverse = reverse.toLowerCase() == "true"
+  } else {
+    reverse = false
+  }
+
+  try {
+    let result = await utils.define(query ? query : q, limit ? limit : 50, searchAfter ? searchAfter : parseInt(page), reverse)
+    // console.log(JSON.stringify(result))
+    return res.json(result)
+  } catch (e) {
+    console.error(e)
+
+    if (!e.status) return res.sendStatus(500)
+    return res.sendStatus(e.status)
+  }
+}
+
+router.get("/define", handleDefine)
+router.post("/define", handleDefine)
+
 async function handleCountSearch(req, res) {
   let { query, q } = (req.query || {})
 
