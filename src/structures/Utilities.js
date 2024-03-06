@@ -514,7 +514,7 @@ class Utilities {
       }
     }
 
-    return { nonImplicatedCount, perCategoryNonImplicatedTagCount: perCategory }
+    return { nonImplicatedTagCount: nonImplicatedCount, perCategoryNonImplicatedTagCount: perCategory }
   }
 
   async createPost(id, tags, uploaderId, approverId, createdAt, updatedAt, md5, sources, rating, width, height, duration,
@@ -529,7 +529,7 @@ class Utilities {
           tags: tagsAsArray,
           flattenedTags: flatTags,
           tagCount: flatTags.length,
-          nonImplicatedTagCount: nonImplicatedTagCount,
+          nonImplicatedTagCount,
           perCategoryNonImplicatedTagCount,
           uploaderId: isNaN(uploaderId) ? null : uploaderId,
           approverId: isNaN(approverId) ? null : approverId,
