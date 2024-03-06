@@ -61,6 +61,39 @@ const META_TAGS_TO_FIELD_NAMES = {
   nonimplicatedtagcount: "nonImplicatedTagCount",
   topleveltagcount: "nonImplicatedTagCount",
   tltagcount: "nonImplicatedTagCount",
+
+  nonimplicatedtagcountgeneral: "nonImplicatedTagCountgeneral",
+  topleveltagcountgeneral: "nonImplicatedTagCountgeneral",
+  tltagcountgen: "nonImplicatedTagCountgeneral",
+
+  nonimplicatedtagcountartist: "nonImplicatedTagCountartist",
+  topleveltagcountartist: "nonImplicatedTagCountartist",
+  tltagcountart: "nonImplicatedTagCountartist",
+
+  nonimplicatedtagcountcopyright: "nonImplicatedTagCountcopyright",
+  topleveltagcountcopyright: "nonImplicatedTagCountcopyright",
+  tltagcountcopy: "nonImplicatedTagCountcopyright",
+
+  nonimplicatedtagcountcharacter: "nonImplicatedTagCountcharacter",
+  topleveltagcountcharacter: "nonImplicatedTagCountcharacter",
+  tltagcountchar: "nonImplicatedTagCountcharacter",
+
+  nonimplicatedtagcountspecies: "nonImplicatedTagCountspecies",
+  topleveltagcountspecies: "nonImplicatedTagCountspecies",
+  tltagcountspec: "nonImplicatedTagCountspecies",
+
+  nonimplicatedtagcountinvalid: "nonImplicatedTagCountinvalid",
+  topleveltagcountinvalid: "nonImplicatedTagCountinvalid",
+  tltagcountinv: "nonImplicatedTagCountinvalid",
+
+  nonimplicatedtagcountmeta: "nonImplicatedTagCountmeta",
+  topleveltagcountmeta: "nonImplicatedTagCountmeta",
+  tltagcountmeta: "nonImplicatedTagCountmeta",
+
+  nonimplicatedtagcountlore: "nonImplicatedTagCountlore",
+  topleveltagcountlore: "nonImplicatedTagCountlore",
+  tltagcountlore: "nonImplicatedTagCountlore",
+
   width: "width",
   height: "height",
   mpixels: "mpixels",
@@ -299,7 +332,7 @@ class Utilities {
     setTimeout(() => {
       this.currentlyUpdating = false
       this.updateAll()
-    }, 5000)
+    }, 30000)
   }
 
   async fetchAndApplyDatabaseExports() {
@@ -454,8 +487,9 @@ class Utilities {
     if (tags.length > 0) await update(tags)
   }
 
-  async countNonImplicatedTags(tags) {
+  async countNonImplicatedTags(tags, tagsAsArray) {
     let nonImplicatedCount = tags.length
+    let perCategory = tagsAsArray.map(t => t.length)
 
     let query = {
       bool: {
@@ -475,11 +509,12 @@ class Utilities {
     for (let relationship of relationships) {
       if (!skip.includes(relationship.antecedentId)) {
         nonImplicatedCount--
+        perCategory[tagsAsArray.findIndex(c => c.indexOf(relationship.antecedentId) != -1)]--
         skip.push(relationship.antecedentId)
       }
     }
 
-    return nonImplicatedCount
+    return { nonImplicatedCount, perCategoryNonImplicatedTagCount: perCategory }
   }
 
   async createPost(id, tags, uploaderId, approverId, createdAt, updatedAt, md5, sources, rating, width, height, duration,
@@ -488,12 +523,14 @@ class Utilities {
 
     return new Promise((resolve) => {
       this.expandTagsToArray(tags).then(async ([tagsAsArray, flatTags]) => {
+        let { nonImplicatedTagCount, perCategoryNonImplicatedTagCount } = await this.countNonImplicatedTags(flatTags, tagsAsArray)
         resolve({
           id,
           tags: tagsAsArray,
           flattenedTags: flatTags,
           tagCount: flatTags.length,
-          nonImplicatedTagCount: await this.countNonImplicatedTags(flatTags),
+          nonImplicatedTagCount: nonImplicatedTagCount,
+          perCategoryNonImplicatedTagCount,
           uploaderId: isNaN(uploaderId) ? null : uploaderId,
           approverId: isNaN(approverId) ? null : approverId,
           createdAt: new Date(createdAt),
@@ -2111,6 +2148,49 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
             return { isOrderTag: false, asQuery: asQuery }
           }
 
+        case "nonImplicatedTagCountgeneral":
+        case "nonImplicatedTagCountartist":
+        case "nonImplicatedTagCountcopyright":
+        case "nonImplicatedTagCountcharacter":
+        case "nonImplicatedTagCountspecies":
+        case "nonImplicatedTagCountinvalid":
+        case "nonImplicatedTagCountmeta":
+        case "nonImplicatedTagCountlore":
+          {
+            let op = "=="
+            if (value == "") return { ignore: true }
+
+            if (isNaN(value)) {
+              if (value.startsWith(">") || value.startsWith("<")) {
+                op = value.slice(0, 1)
+                value = value.slice(1)
+              } else if (value.startsWith(">=") || value.startsWith("<=")) {
+                op = value.slice(0, 2)
+                value = value.slice(2)
+              } else {
+                return { ignore: true }
+              }
+
+              if (isNaN(value)) return { ignore: true }
+            }
+
+            return {
+              isOrderTag: false,
+              asQuery: {
+                script: {
+                  script: {
+                    lang: "painless",
+                    source: `doc.perCategoryNonImplicatedTagCount[params.category] ${op} params.value`,
+                    params: {
+                      value: parseInt(value),
+                      category: TAG_CATEGORIES_TO_CATEGORY_ID[tagName.slice(21)]
+                    }
+                  }
+                }
+              }
+            }
+          }
+
         case "hasSource":
           {
             if (value != "true" && value != "false") return { ignore: true }
@@ -2529,7 +2609,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
     let tokenizer = new Tokenizer(query)
 
     let res = ""
-    
+
     for (let token of tokenizer) {
       if (!["-", "-(", "(", ")", "~"].includes(token)) {
         res += ((await this.getAliasOrTag(token))?.name ?? token) + " "
