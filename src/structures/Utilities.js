@@ -171,79 +171,6 @@ class Utilities {
     // // await this.database.indices.delete({ index: "hangingrelationships" })
     */
 
-    // ;(() => {
-    //   new Promise(async () => {
-    //     let update = async (posts) => {
-    //       let now = Date.now()
-          
-    //       let bulk = []
-    //       for (let post of posts) {
-    //         let { nonImplicatedTagCount, perCategoryNonImplicatedTagCount } = await this.countNonImplicatedTags(post.tags.flat(), post.tags)
-    
-    //         bulk.push({ update: { _id: post.id.toString() } })
-    //         bulk.push({ doc: { perCategoryNonImplicatedTagCount, nonImplicatedTagCount } })
-    //       }
-    
-    //       if (bulk.length > 0) {
-    //         let res = await this.database.bulk({ index: "posts", operations: bulk })
-    //         if (res.errors) {
-    //           let now = Date.now()
-    //           console.error(`Bulk had errors, written to bulk-error-${now}.json`)
-    //           fs.writeFileSync(`./bulk-error-${now}.json`, JSON.stringify(res, null, 4))
-    //         }
-    //       }
-    
-    //       console.log(`Operation took ${Date.now() - now}ms`)
-    //     }
-    
-    //     let posts = []
-    
-    //     console.log("Starting")
-    //     let pointInTime = await this.database.openPointInTime({ index: "posts", keep_alive: "5m" })
-    
-    //     let res = await this.database.search({
-    //       size: 1024, sort: { id: "desc" },
-    //       pit: {
-    //         id: pointInTime.id,
-    //         keep_alive: "5m"
-    //       },
-    //       query: {
-    //         match_all: {}
-    //       }
-    //     })
-    
-    //     posts = posts.concat(res.hits.hits.map(t => t._source))
-    
-    //     while (res.hits.hits.length > 0) {
-    //       res = await this.database.search({
-    //         size: 1024, sort: { id: "desc" }, search_after: res.hits.hits[res.hits.hits.length - 1].sort,
-    //         pit: {
-    //           id: pointInTime.id,
-    //           keep_alive: "5m"
-    //         }, query: {
-    //           match_all: {}
-    //         }
-    //       })
-    
-    //       posts = posts.concat(res.hits.hits.map(t => t._source))
-    
-    //       if (posts.length >= 10000) {
-    //         await update(posts)
-    
-    //         posts.length = 0
-    //       }
-    //     }
-    
-    //     if (posts.length > 0) await update(posts)
-    
-    //     await this.database.closePointInTime({ id: pointInTime.id })
-    
-    //     console.log("ALL DONE!")
-    //   })
-    // })()
-
-    // console.log("Proceeding")
-
     let postsExists = await this.database.indices.exists({ index: "posts" })
     if (!postsExists) {
       await this.database.indices.create({
@@ -2841,7 +2768,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
     }
   }
 
-  async performSearch(query, limit = 50, searchAfter = null, reverse = false) {
+  async defineSearch(query, limit = 50, searchAfter = null, reverse = false) {
     try {
       let success, group
 

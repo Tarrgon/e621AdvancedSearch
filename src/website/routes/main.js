@@ -63,7 +63,7 @@ async function handleDefine(req, res) {
   }
 
   try {
-    let result = await utils.define(query ? query : q, limit ? limit : 50, searchAfter ? searchAfter : parseInt(page), reverse)
+    let result = await utils.defineSearch(query ? query : q, limit ? limit : 50, searchAfter ? searchAfter : parseInt(page), reverse)
     // console.log(JSON.stringify(result))
     return res.json(result)
   } catch (e) {
