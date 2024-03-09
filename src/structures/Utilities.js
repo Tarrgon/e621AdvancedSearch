@@ -118,7 +118,16 @@ const META_TAGS_TO_FIELD_NAMES = {
 }
 
 const META_TAGS = ["order", "user", "approver", "id", "score", "favcount", "favoritecount", "commentcount", "comment_count",
-  "nonimplicatedtagcount", "topleveltagcount", "tltagcount", "tagcount",
+  "nonimplicatedtagcount", "topleveltagcount", "tltagcount",
+  "nonimplicatedtagcountgeneral", "topleveltagcountgeneral", "tltagcountgen",
+  "nonimplicatedtagcountartist", "topleveltagcountartist", "tltagcountart",
+  "nonimplicatedtagcountcopyright", "topleveltagcountcopyright", "tltagcountcopy",
+  "nonimplicatedtagcountcharacter", "topleveltagcountcharacter", "tltagcountchar",
+  "nonimplicatedtagcountspecies", "topleveltagcountspecies", "tltagcountspec",
+  "nonimplicatedtagcountinvalid", "topleveltagcountinvalid", "tltagcountinv",
+  "nonimplicatedtagcountlore", "topleveltagcountlore", "tltagcountmeta",
+  "nonimplicatedtagcountlore", "topleveltagcountlore", "tltagcountmetalore",
+  "tagcount",
   "gentags", "arttags", "chartags", "copytags", "spectags", "invtags", "lortags", "loretags", "metatags", "rating", "type",
   "width", "height", "mpixels", "megapixels", "ratio", "filesize", "status", "date", "source", "ischild", "isparent", "parent", "hassource",
   "ratinglocked", "notelocked", "md5", "duration", "inparent", "inchild", "inancestor", "indescendant", "randseed", "rankdate"
@@ -134,6 +143,8 @@ const TAG_CATEGORIES_TO_CATEGORY_ID = {
   meta: 7,
   lore: 8
 }
+
+const TAG_CATEGORIES = ["general", "artist", "", "copyright", "character", "species", "invalid", "meta", "lore"]
 
 const META_MATCH_REGEX = new RegExp(META_TAGS.map(t => `(${t}):(.*)`).join("|"))
 
@@ -170,6 +181,84 @@ class Utilities {
     // // await this.database.indices.delete({ index: "tagimplications" })
     // // await this.database.indices.delete({ index: "hangingrelationships" })
     */
+
+    // ;(() => {
+    //   new Promise(async () => {
+    //     let update = async (posts) => {
+    //       let now = Date.now()
+
+    //       let bulk = []
+    //       for (let post of posts) {
+    //         let { nonImplicatedTagCount, perCategoryNonImplicatedTagCount } = await this.countNonImplicatedTags(post.tags.flat(), post.tags)
+
+    //         let doc = { nonImplicatedTagCount }
+
+    //         for (let i = 0; i < perCategoryNonImplicatedTagCount.length; i++) {
+    //           if (TAG_CATEGORIES[i] == "") continue
+    //           doc[`nonImplicatedTagCount_${TAG_CATEGORIES[i]}`] = perCategoryNonImplicatedTagCount[i]
+    //         }
+
+    //         bulk.push({ update: { _id: post.id.toString() } })
+    //         bulk.push({ doc })
+    //       }
+
+    //       if (bulk.length > 0) {
+    //         let res = await this.database.bulk({ index: "posts", operations: bulk })
+    //         if (res.errors) {
+    //           let now = Date.now()
+    //           console.error(`Bulk had errors, written to bulk-error-${now}.json`)
+    //           fs.writeFileSync(`./bulk-error-${now}.json`, JSON.stringify(res, null, 4))
+    //         }
+    //       }
+
+    //       console.log(`Operation took ${Date.now() - now}ms`)
+    //     }
+
+    //     let posts = []
+
+    //     console.log("Starting")
+    //     let pointInTime = await this.database.openPointInTime({ index: "posts", keep_alive: "5m" })
+
+    //     let res = await this.database.search({
+    //       size: 1024, sort: { id: "desc" },
+    //       pit: {
+    //         id: pointInTime.id,
+    //         keep_alive: "5m"
+    //       },
+    //       query: {
+    //         match_all: {}
+    //       }
+    //     })
+
+    //     posts = posts.concat(res.hits.hits.map(t => t._source))
+
+    //     while (res.hits.hits.length > 0) {
+    //       res = await this.database.search({
+    //         size: 1024, sort: { id: "desc" }, search_after: res.hits.hits[res.hits.hits.length - 1].sort,
+    //         pit: {
+    //           id: pointInTime.id,
+    //           keep_alive: "5m"
+    //         }, query: {
+    //           match_all: {}
+    //         }
+    //       })
+
+    //       posts = posts.concat(res.hits.hits.map(t => t._source))
+
+    //       if (posts.length >= 10000) {
+    //         await update(posts)
+
+    //         posts.length = 0
+    //       }
+    //     }
+
+    //     if (posts.length > 0) await update(posts)
+
+    //     await this.database.closePointInTime({ id: pointInTime.id })
+
+    //     console.log("ALL DONE!")
+    //   })
+    // })()
 
     let postsExists = await this.database.indices.exists({ index: "posts" })
     if (!postsExists) {
@@ -524,13 +613,13 @@ class Utilities {
     return new Promise((resolve) => {
       this.expandTagsToArray(tags).then(async ([tagsAsArray, flatTags]) => {
         let { nonImplicatedTagCount, perCategoryNonImplicatedTagCount } = await this.countNonImplicatedTags(flatTags, tagsAsArray)
-        resolve({
+
+        let obj = {
           id,
           tags: tagsAsArray,
           flattenedTags: flatTags,
           tagCount: flatTags.length,
           nonImplicatedTagCount,
-          perCategoryNonImplicatedTagCount,
           uploaderId: isNaN(uploaderId) ? null : uploaderId,
           approverId: isNaN(approverId) ? null : approverId,
           createdAt: new Date(createdAt),
@@ -556,7 +645,14 @@ class Utilities {
           isRatingLocked,
           isStatusLocked,
           isNoteLocked
-        })
+        }
+
+        for (let i = 0; i < perCategoryNonImplicatedTagCount.length; i++) {
+          if (TAG_CATEGORIES[i] == "") continue
+          obj[`nonImplicatedTagCount_${TAG_CATEGORIES[i]}`] = perCategoryNonImplicatedTagCount[i]
+        }
+
+        resolve(obj)
       })
     })
   }
@@ -2102,38 +2198,40 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
         case "lore":
         case "meta":
           {
-            let op = "=="
-            if (value == "") return { ignore: true }
+            // Doesn't work idk if I can make it work, either...
+            return { ignore: true }
+            // let op = "=="
+            // if (value == "") return { ignore: true }
 
-            if (isNaN(value)) {
-              if (value.startsWith(">") || value.startsWith("<")) {
-                op = value.slice(0, 1)
-                value = value.slice(1)
-              } else if (value.startsWith(">=") || value.startsWith("<=")) {
-                op = value.slice(0, 2)
-                value = value.slice(2)
-              } else {
-                return { ignore: true }
-              }
+            // if (isNaN(value)) {
+            //   if (value.startsWith(">") || value.startsWith("<")) {
+            //     op = value.slice(0, 1)
+            //     value = value.slice(1)
+            //   } else if (value.startsWith(">=") || value.startsWith("<=")) {
+            //     op = value.slice(0, 2)
+            //     value = value.slice(2)
+            //   } else {
+            //     return { ignore: true }
+            //   }
 
-              if (isNaN(value)) return { ignore: true }
-            }
+            //   if (isNaN(value)) return { ignore: true }
+            // }
 
-            return {
-              isOrderTag: false,
-              asQuery: {
-                script: {
-                  script: {
-                    lang: "painless",
-                    source: `doc.tags[params.category] ${op} params.value`,
-                    params: {
-                      value: parseInt(value),
-                      category: TAG_CATEGORIES_TO_CATEGORY_ID[tagName]
-                    }
-                  }
-                }
-              }
-            }
+            // return {
+            //   isOrderTag: false,
+            //   asQuery: {
+            //     script: {
+            //       script: {
+            //         lang: "painless",
+            //         source: `doc.tags[params.category] ${op} params.value`,
+            //         params: {
+            //           value: parseInt(value),
+            //           category: TAG_CATEGORIES_TO_CATEGORY_ID[tagName]
+            //         }
+            //       }
+            //     }
+            //   }
+            // }
           }
 
         case "nonImplicatedTagCount":
@@ -2157,38 +2255,13 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
         case "nonImplicatedTagCountmeta":
         case "nonImplicatedTagCountlore":
           {
-            let op = "=="
-            if (value == "") return { ignore: true }
+            let category = tagName.slice(21)
 
-            if (isNaN(value)) {
-              if (value.startsWith(">") || value.startsWith("<")) {
-                op = value.slice(0, 1)
-                value = value.slice(1)
-              } else if (value.startsWith(">=") || value.startsWith("<=")) {
-                op = value.slice(0, 2)
-                value = value.slice(2)
-              } else {
-                return { ignore: true }
-              }
+            let asQuery = this.parseRangeSyntax(value, `nonImplicatedTagCount_${category}`, "number")
 
-              if (isNaN(value)) return { ignore: true }
-            }
+            if (!asQuery) return { ignore: true }
 
-            return {
-              isOrderTag: false,
-              asQuery: {
-                script: {
-                  script: {
-                    lang: "painless",
-                    source: `doc.perCategoryNonImplicatedTagCount[params.category] ${op} params.value`,
-                    params: {
-                      value: parseInt(value),
-                      category: TAG_CATEGORIES_TO_CATEGORY_ID[tagName.slice(21)]
-                    }
-                  }
-                }
-              }
-            }
+            return { isOrderTag: false, asQuery: asQuery }
           }
 
         case "hasSource":
@@ -2202,7 +2275,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
                   script: {
                     script: {
                       lang: "painless",
-                      source: `doc.sources.size() > params.value`,
+                      source: `doc["sources.keyword"].length > params.value`,
                       params: {
                         value: 0
                       }
@@ -2217,7 +2290,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
                   script: {
                     script: {
                       lang: "painless",
-                      source: `doc.sources.size() == params.value`,
+                      source: `doc["sources.keyword"].length == params.value`,
                       params: {
                         value: 0
                       }
@@ -2763,7 +2836,8 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
 
       return response
     } catch (e) {
-      console.error(e)
+      console.error(JSON.stringify(e, null, 4))
+
       return { status: 500, message: "Internal server error" }
     }
   }

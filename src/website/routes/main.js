@@ -5,6 +5,9 @@ let utils = null
 
 async function handlePostSearch(req, res) {
   let { query, q, limit, page, reverse } = (req.query || {})
+  if (query) query = decodeURIComponent(query)
+  if (q) q = decodeURIComponent(q)
+  
   let { searchAfter } = (req.body || {})
 
   if (!query && !q && req.body.query) {
@@ -28,6 +31,11 @@ async function handlePostSearch(req, res) {
   try {
     let result = await utils.performSearch(query ? query : q, limit ? limit : 50, searchAfter ? searchAfter : parseInt(page), reverse)
     // console.log(JSON.stringify(result))
+
+    if (result.status) {
+      return res.status(result.status).json(result)
+    }
+
     return res.json(result)
   } catch (e) {
     console.error(e)
@@ -42,6 +50,9 @@ router.post("/", handlePostSearch)
 
 async function handleDefine(req, res) {
   let { query, q, limit, page, reverse } = (req.query || {})
+  if (query) query = decodeURIComponent(query)
+  if (q) q = decodeURIComponent(q)
+
   let { searchAfter } = (req.body || {})
 
   if (!query && !q && req.body.query) {
