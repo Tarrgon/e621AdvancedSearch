@@ -1,5 +1,6 @@
 // Dependencies
 const { Client, ConnectionOptions, UndiciConnection } = require("@elastic/elasticsearch")
+const { MongoClient } = require("mongodb")
 const { kEmitter } = require("@elastic/transport/lib/symbols")
 const express = require("express")
 const cors = require("cors")
@@ -21,7 +22,11 @@ module.exports = async () => {
       }
     })
 
-    const utils = new Utilities(elasticSearchClient)
+    const mongoClient = new MongoClient(config.mongoDatabaseUrl)
+    await mongoClient.connect()
+    const mongoDatabase = mongoClient.db(config.mongoDatabaseName)
+
+    const utils = new Utilities(elasticSearchClient, mongoDatabase)
 
     const app = express()
 
@@ -32,6 +37,7 @@ module.exports = async () => {
 
     // routers
     app.use("/", require("./routes/main.js")(utils))
+    app.use("/admin", require("./routes/admin.js")(utils, config))
 
     return app
   } catch (e) {

@@ -62,6 +62,9 @@ class E621Requester {
   }
 
   async addNewPosts() {
+    let newPosts = []
+    let updatedPosts = []
+
     try {
       let latestPostId = await this.utilities.getLatestPostId()
       console.log(`Adding posts after ${latestPostId}`)
@@ -82,8 +85,15 @@ class E621Requester {
 
         let existingPost = await this.utilities.getPost(post.id)
 
-        if (!existingPost) await this.utilities.addPost(newPost)
-        else if (new Date(existingPost.updatedAt).getTime() != newPost.updatedAt.getTime()) await this.utilities.updatePost(newPost)
+        if (!existingPost) {
+          await this.utilities.addPost(newPost)
+
+          newPosts.push(newPost)
+        } else if (new Date(existingPost.updatedAt).getTime() != newPost.updatedAt.getTime()) {
+          await this.utilities.updatePost(newPost)
+
+          updatedPosts.push(newPost)
+        }
       }
 
       if (data.posts.length >= 320) await this.addNewPosts()
@@ -94,9 +104,20 @@ class E621Requester {
         return false
       }
     }
+
+    if (newPosts.length > 0 && updatedPosts.length > 0) {
+      this.utilities.postNewAndUpdatedPosts(newPosts, updatedPosts)
+    } else if (newPosts.length > 0 && updatedPosts.length == 0) {
+      this.utilities.postNewPosts(newPosts)
+    } else if (updatedPosts.length > 0 && newPosts.length == 0) {
+      this.utilities.postUpdatedPosts(updatedPosts)
+    }
   }
 
   async checkForMisses(page = 1, endPageWithNoUpdates = 5) {
+    let newPosts = []
+    let updatedPosts = []
+
     try {
       let data = await this.addUrlToQueue(`posts.json?tags=order:change%20status:any&limit=320&page=${page}`)
 
@@ -136,6 +157,8 @@ class E621Requester {
             anyUpdated = true
 
             batch.update.push(p)
+
+            updatedPosts.push(p)
           }
 
           resolve()
@@ -157,6 +180,8 @@ class E621Requester {
 
           batch.create.push(p)
 
+          newPosts.push(p)
+
           resolve()
         }))
       }
@@ -176,9 +201,19 @@ class E621Requester {
         return false
       }
     }
+
+    if (newPosts.length > 0 && updatedPosts.length > 0) {
+      this.utilities.postNewAndUpdatedPosts(newPosts, updatedPosts)
+    } else if (newPosts.length > 0 && updatedPosts.length == 0) {
+      this.utilities.postNewPosts(newPosts)
+    } else if (updatedPosts.length > 0 && newPosts.length == 0) {
+      this.utilities.postUpdatedPosts(updatedPosts)
+    }
   }
 
   async applyUpdates(page = 1, endPageWithNoUpdates = 5) {
+    let updatedPosts = []
+
     try {
       let anyUpdated = page < endPageWithNoUpdates
 
@@ -216,6 +251,8 @@ class E621Requester {
             this.updated++
             anyUpdated = true
 
+            updatedPosts.push(p)
+
             batch.push(p)
           }
 
@@ -237,6 +274,10 @@ class E621Requester {
       if (e.e621Moment == true || e.code == 500) {
         return false
       }
+    }
+
+    if (updatedPosts.length > 0) {
+      this.utilities.postUpdatedPosts(updatedPosts)
     }
   }
 
@@ -339,23 +380,100 @@ class E621Requester {
     }
   }
 
+  async updateTagImplication(tagName) {
+    try {
+      let data = await this.addUrlToQueue(`tag_implications.json?search%5Border%5D=updated_at&&search%5Bname_matches%5D=${tagName}`)
+
+      if (data.tag_implications) return
+
+      for (let tagImplication of data) {
+        let existingTagImplication = await this.utilities.getTagImplication(tagImplication.id)
+
+        if (existingTagImplication && new Date(existingTagImplication.updatedAt) >= new Date(tagImplication.updated_at)) {
+          continue
+        }
+
+        if (tagImplication.status == "active") {
+
+          let child = await this.utilities.getOrAddTag(tagImplication.antecedent_name)
+          let parent = await this.utilities.getOrAddTag(tagImplication.consequent_name)
+
+          if (!child || !parent) {
+            console.error(`Unable to add tag implication: ${tagImplication.antecedent_name} -> ${tagImplication.consequent_name} (${!child} | ${!parent})`)
+            continue
+          }
+
+          if (!existingTagImplication) {
+            anyUpdated = true
+            await this.utilities.addTagImplication({ id: tagImplication.id, antecedentId: child.id, consequentId: parent.id, updatedAt: new Date(tagImplication.updated_at) })
+          } else if (existingTagImplication.antecedentId != child.id || existingTagImplication.consequentId != parent.id) {
+            anyUpdated = true
+            await this.utilities.updateTagImplication({ id: tagImplication.id, antecedentId: child.id, consequentId: parent.id, updatedAt: new Date(tagImplication.updated_at) })
+          }
+        } else {
+          if (existingTagImplication) {
+            anyUpdated = true
+            await this.utilities.deleteTagImplication(tagImplication.id)
+          }
+        }
+      }
+
+      if (anyUpdated && page < 750) await this.updateTagImplications(++page)
+    } catch (e) {
+      console.error(e)
+
+      if (e.e621Moment == true || e.code == 500) {
+        return false
+      }
+    }
+  }
+
   async updateTags(page = 1, endPageWithNoUpdates = 5) {
     try {
-      let data = await this.addUrlToQueue(`tags.json?search%5Border%5D=updated_at&limit=100&page=${page}&search%5Bhide_empty%5D=0`)
-  
+      let data = await this.addUrlToQueue(`tag_type_versions.json?limit=100&page=${page}`)
+
       let anyUpdated = page < endPageWithNoUpdates
-  
+
       if (data.tags) return
-  
+
+      for (let tag of data) {
+        let existingTag = await this.utilities.getTag(tag.tag_id)
+
+        if (existingTag && new Date(existingTag.updatedAt) >= new Date(tag.updated_at) && existingTag.category == tag.new_type) {
+          continue
+        }
+
+        let newTag = await this.getTagById(tag.tag_id)
+
+        anyUpdated = true
+        if (existingTag) await this.utilities.updateTag(newTag)
+        else await this.utilities.addTag(newTag)
+      }
+
+      if (anyUpdated && page < 750) await this.updateTags(++page)
+    } catch (e) {
+      console.error(e)
+
+      if (e.e621Moment == true || e.code == 500) {
+        return false
+      }
+    }
+  }
+
+  async updateTag(tagName) {
+    try {
+      let data = await this.addUrlToQueue(`tags.json?search%5Border%5D=updated_at&search%5Bhide_empty%5D=0&search%5Bname_matches%5D=${tagName}`)
+
+      if (data.tags) return
+
       for (let tag of data) {
         let existingTag = await this.utilities.getTag(tag.id)
-  
+
         if (existingTag && new Date(existingTag.updatedAt) >= new Date(tag.updated_at)) {
           continue
         }
-  
+
         if (tag.post_count != 0) {
-          anyUpdated = true
           if (existingTag) await this.utilities.updateTag({ id: tag.id, name: tag.name, category: tag.category, postCount: tag.post_count, updatedAt: new Date(tag.updated_at) })
           else await this.utilities.addTag({ id: tag.id, name: tag.name, category: tag.category, postCount: tag.post_count, updatedAt: new Date(tag.updated_at) })
         } else {
@@ -365,11 +483,9 @@ class E621Requester {
           }
         }
       }
-  
-      if (anyUpdated && page < 750) await this.updateTags(++page)
     } catch (e) {
       console.error(e)
-  
+
       if (e.e621Moment == true || e.code == 500) {
         return false
       }

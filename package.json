@@ -9,7 +9,8 @@
     "filesize-parser": "^1.5.0",
     "gunzip-file": "^0.1.1",
     "node-cache": "^5.1.2",
-    "node-cron": "^3.0.2"
+    "node-cron": "^3.0.2",
+    "mongodb": "^6.1.0"
   },
   "scripts": {
     "start": "node ./src/website/bin/www --max-old-space-size=4096"

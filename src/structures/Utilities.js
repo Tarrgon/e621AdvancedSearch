@@ -1,4 +1,5 @@
 const { Client } = require("@elastic/elasticsearch")
+const { Db } = require("mongodb")
 const E621Requester = require("./E621Requester.js")
 const Tokenizer = require("./Tokenizer.js")
 const fs = require("fs")
@@ -160,13 +161,16 @@ function toFixed(num, fixed) {
 class Utilities {
   static singleton
 
-  constructor(elasticSearchClient) {
+  constructor(elasticSearchClient, mongoDatabase) {
     /** @type {Client} */
     this.database = elasticSearchClient
 
     this.requester = new E621Requester(this)
 
     this.ensureDatabase()
+
+    /** @type {Db} */
+    this.mongoDatabase = mongoDatabase
 
     this.singleton = this
   }
@@ -1547,7 +1551,7 @@ if (ctx._source.tags[params.newCategory].indexOf(params.tagId) == -1) ctx._sourc
         if (res.errors) {
           let now = Date.now()
           console.error(`Bulk had errors, written to bulk-error-${now}.json`)
-          fs.writeFileSync(`./bulk-error-${now}.json`, JSON.stringify(res, null, 4))
+          fs.writeFileSync(`./bulk-error-${now}.json`, JSON.stringify(res, null, 4) + "\nBULK DATA:\n" + JSON.stringify(bulk, null, 4))
         }
       }
       console.log(`Operation took ${Date.now() - now}ms`)
@@ -1763,11 +1767,14 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
       id: tagAlias.id.toString(),
       document: tagAlias
     })
+
+    await updateAllImplicationsWithTag(tagAlias.antecedentName, tagAlias.consequentId)
   }
 
   async updateTagAlias(tagAlias) {
     tagAlias.updatedAt = new Date()
     await this.database.update({ index: "tagaliases", id: tagAlias.id.toString(), doc: tagAlias })
+    await updateAllImplicationsWithTag(tagAlias.antecedentName, tagAlias.consequentId)
   }
 
   async deleteTagAlias(id) {
@@ -1803,6 +1810,37 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
       id: tagImplication.id.toString(),
       document: tagImplication
     })
+  }
+
+  async updateAllImplicationsWithTag(oldName, newId) {
+    let oldId = (await this.getTagByName(oldName)).id
+    
+    let implications = (await this.getAllImplicationsWithAntecendent(oldId)).concat(await this.getAllImplicationsWithConsequent(oldId))
+
+    for (let implication of implications) {
+      if (implication.antecedentId == oldId) implication.antecedentId = newId
+      else if (implication.consequentId == oldId) implication.consequentId = newId
+    }
+
+    await this.bulkUpdateTagImplications(implications)
+  }
+
+  async bulkUpdateTagImplications(implications) {
+    let bulk = []
+    for (let implication of implications) {
+      implication.updatedAt = new Date()
+      bulk.push({ update: { _id: implication.id.toString() } })
+      bulk.push({ doc: implication })
+    }
+
+    if (bulk.length > 0) {
+      let res = await this.database.bulk({ index: "tagimplications", operations: bulk })
+      if (res.errors) {
+        let now = Date.now()
+        console.error(`Bulk had errors, written to bulk-error-${now}.json`)
+        fs.writeFileSync(`./bulk-error-${now}.json`, JSON.stringify(res, null, 4))
+      }
+    }
   }
 
   async updateTagImplication(tagImplication) {
@@ -2171,7 +2209,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
           {
             if (value == "") return { ignore: true }
 
-            let asQuery = this.parseRangeSyntax(value, tagName, "number")
+            let asQuery = this.parseRangeSyntax(value, tagName, tagName == "fileSize" ? "size" : "number")
 
             if (!asQuery) return { ignore: true }
 
@@ -3133,6 +3171,58 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
     return {
       thisTag: tag,
       parents: antecedes.length == 0 ? [] : await Promise.all(antecedes.map(async p => ({ thisTag: p, parents: (await this.getAllParentRelationships(p.name)).parents })))
+    }
+  }
+
+  async postNewPosts(posts) {
+    await this.processPostSearchResponse(posts)
+    let postData = JSON.stringify({ newPosts: posts })
+    for await (let webhook of this.mongoDatabase.collection("webhooks").find({ listenNewPosts: true })) {
+      fetch(webhook.url, {
+        method: "POST",
+        body: postData,
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }).catch(() => { })
+    }
+  }
+
+  async postUpdatedPosts(posts) {
+    await this.processPostSearchResponse(posts)
+    let postData = JSON.stringify({ updatedPosts: posts })
+    for await (let webhook of this.mongoDatabase.collection("webhooks").find({ listenUpdatedPosts: true })) {
+      fetch(webhook.url, {
+        method: "POST",
+        body: postData,
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }).catch(() => { })
+    }
+  }
+
+  async postNewAndUpdatedPosts(newPosts, updatedPosts) {
+    await this.processPostSearchResponse(newPosts)
+    await this.processPostSearchResponse(updatedPosts)
+
+    let bothData = JSON.stringify({ newPosts, updatedPosts })
+    let newData = JSON.stringify({ newPosts })
+    let updatedData = JSON.stringify({ updatedPosts })
+
+    for await (let webhook of this.mongoDatabase.collection("webhooks").find({ $or: [{ listenNewPosts: true }, { listenUpdatedPosts: true }] })) {
+      let postData = bothData
+
+      if (webhook.listenNewPosts && !webhook.listenUpdatedPosts) postData = newData
+      else if (webhook.listenUpdatedPosts && !webhook.listenNewPosts) postData = updatedData
+
+      fetch(webhook.url, {
+        method: "POST",
+        body: postData,
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }).catch(console.error)
     }
   }
 }
