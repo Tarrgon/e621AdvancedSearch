@@ -59,7 +59,7 @@ class FurAffinityChecker extends SourceChecker {
         let dom = new JSDOM(html)
         let document = dom.window.document
 
-        let href = document.querySelector("meta[property='og:image']").getAttribute("content")
+        let href = document.querySelector("meta[property='og:image']")?.getAttribute("content")
 
         if (href) {
           return await this._processDirectLink(post, href)

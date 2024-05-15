@@ -22,6 +22,8 @@ class DirectSourceChecker extends SourceChecker {
       new RegExp(".*:\/\/uploads\.ungrounded\.net\/.*\.(png|jpg|jpeg|gif|webm).*"),
       new RegExp(".*:\/\/art\.ngfiles\.com\/images\/.*\.(png|jpg|jpeg|gif|webm).*"),
       new RegExp(".*:\/\/nl\.ib\.metapix\.net\/files\/.*\.(png|jpg|jpeg|gif|webm).*"),
+      new RegExp(".*:\/\/files\.catbox\.moe\/.*\.(png|jpg|jpeg|gif|webm).*"),
+      new RegExp(".*:\/\/i\.imgur\.com\/.*\.(png|jpg|jpeg|gif|webm).*")
     ]
   }
 
