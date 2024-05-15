@@ -9,6 +9,8 @@ const filesizeParser = require('filesize-parser')
 const NodeCache = require("node-cache")
 const nonExistentTagCache = new NodeCache({ useClones: false, stdTTL: 300, checkperiod: 120 })
 
+const SourceCheckerManager = require("../sourceChecker/SourceCheckerManager.js")
+
 const TOKENS_TO_SKIP = ["~", "-"]
 const MODIFIERS = {
   NONE: 0,
@@ -167,12 +169,14 @@ class Utilities {
 
     this.requester = new E621Requester(this)
 
-    this.ensureDatabase()
-
     /** @type {Db} */
     this.mongoDatabase = mongoDatabase
 
     this.singleton = this
+
+    this.sourceCheckerManager = new SourceCheckerManager(this, mongoDatabase)
+
+    this.ensureDatabase()
   }
 
   async ensureDatabase() {
@@ -1768,13 +1772,13 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
       document: tagAlias
     })
 
-    await updateAllImplicationsWithTag(tagAlias.antecedentName, tagAlias.consequentId)
+    await this.updateAllImplicationsWithTag(tagAlias.antecedentName, tagAlias.consequentId)
   }
 
   async updateTagAlias(tagAlias) {
     tagAlias.updatedAt = new Date()
     await this.database.update({ index: "tagaliases", id: tagAlias.id.toString(), doc: tagAlias })
-    await updateAllImplicationsWithTag(tagAlias.antecedentName, tagAlias.consequentId)
+    await this.updateAllImplicationsWithTag(tagAlias.antecedentName, tagAlias.consequentId)
   }
 
   async deleteTagAlias(id) {
@@ -1803,6 +1807,48 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
     return (await this.database.mget({ index: "tagimplications", ids })).docs.filter(d => d.found).map(d => d._source)
   }
 
+  async getAllImplicationsWithAntecendent(id) {
+    let query = {
+      bool: {
+        should: [
+          {
+            term: {
+              antecedentId: id
+            }
+          }
+        ],
+        minimum_should_match: 1
+      }
+    }
+
+    let res = await this.database.search({
+      size: 10000, index: "tagimplications", sort: { id: "desc" }, query
+    })
+
+    return res.hits.hits.map(hit => hit._source)
+  }
+
+  async getAllImplicationsWithConsequent(id) {
+    let query = {
+      bool: {
+        should: [
+          {
+            term: {
+              consequentId: id
+            }
+          }
+        ],
+        minimum_should_match: 1
+      }
+    }
+
+    let res = await this.database.search({
+      size: 10000, index: "tagimplications", sort: { id: "desc" }, query
+    })
+
+    return res.hits.hits.map(hit => hit._source)
+  }
+
   async addTagImplication(tagImplication) {
     tagImplication.updatedAt = new Date()
     await this.database.index({
@@ -1813,7 +1859,9 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
   }
 
   async updateAllImplicationsWithTag(oldName, newId) {
-    let oldId = (await this.getTagByName(oldName)).id
+    let oldId = (await this.getTagByName(oldName))?.id
+
+    if (!oldId) return
     
     let implications = (await this.getAllImplicationsWithAntecendent(oldId)).concat(await this.getAllImplicationsWithConsequent(oldId))
 
@@ -1862,6 +1910,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
           tagGroup[i] = usedTags.find(t => t.id == tagGroup[i]).name
         } catch (e) {
           console.error("Error converting tags ids to tags")
+          console.error(e)
           console.error(post)
           console.error(asFlat)
           console.error(usedTags)
@@ -3175,6 +3224,8 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
   }
 
   async postNewPosts(posts) {
+    this.sourceCheckerManager.queuePosts(posts)
+    
     await this.processPostSearchResponse(posts)
     let postData = JSON.stringify({ newPosts: posts })
     for await (let webhook of this.mongoDatabase.collection("webhooks").find({ listenNewPosts: true })) {
@@ -3189,6 +3240,8 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
   }
 
   async postUpdatedPosts(posts) {
+    this.sourceCheckerManager.queuePosts(posts)
+
     await this.processPostSearchResponse(posts)
     let postData = JSON.stringify({ updatedPosts: posts })
     for await (let webhook of this.mongoDatabase.collection("webhooks").find({ listenUpdatedPosts: true })) {
@@ -3203,6 +3256,9 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
   }
 
   async postNewAndUpdatedPosts(newPosts, updatedPosts) {
+    this.sourceCheckerManager.queuePosts(newPosts)
+    this.sourceCheckerManager.queuePosts(updatedPosts)
+
     await this.processPostSearchResponse(newPosts)
     await this.processPostSearchResponse(updatedPosts)
 

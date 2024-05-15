@@ -439,7 +439,7 @@ class E621Requester {
       for (let tag of data) {
         let existingTag = await this.utilities.getTag(tag.tag_id)
 
-        if (existingTag && new Date(existingTag.updatedAt) >= new Date(tag.updated_at) && existingTag.category == tag.new_type) {
+        if (existingTag && new Date(existingTag.updatedAt) >= new Date(tag.updated_at)) {
           continue
         }
 
@@ -521,11 +521,12 @@ class E621Requester {
       if (data && data[0]) {
         return { id: data[0].id, name: data[0].name, category: data[0].category, postCount: data[0].post_count, updatedAt: new Date(data[0].updated_at) }
       } else {
+        console.error(`Tag not found: ${id}`)
         return null
       }
     } catch (e) {
       if (e.code == 404) {
-        console.error(`Tag not found: ${tagName}`)
+        console.error(`Tag not found: ${id}`)
       } else {
         console.error(e)
       }

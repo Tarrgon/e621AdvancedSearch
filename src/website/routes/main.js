@@ -143,7 +143,7 @@ router.get("/tagrelationships", async (req, res) => {
       let alias = await utils.getTagAliasByName(tag)
 
       if (alias) {
-        tag = (await utils.getTag(alias.consequentId)).name
+        tag = (await utils.getOrAddTagById(alias.consequentId)).name
       }
 
       relationships[tag] = await utils.getAllParentRelationships(tag.trim())
@@ -154,7 +154,7 @@ router.get("/tagrelationships", async (req, res) => {
       let alias = await utils.getTagAliasByName(tag)
 
       if (alias) {
-        tag = (await utils.getTag(alias.consequentId)).name
+        tag = (await utils.getOrAddTagById(alias.consequentId)).name
       }
 
       relationships[tag] = await utils.getDirectTagRelationships(tag.trim(), include)
