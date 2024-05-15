@@ -37,6 +37,7 @@ module.exports = async () => {
 
     // routers
     app.use("/", require("./routes/main.js")(utils))
+    app.use("/checksource", require("./routes/checksource.js")(utils))
     app.use("/admin", require("./routes/admin.js")(utils, config))
 
     return app
