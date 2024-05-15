@@ -20,6 +20,7 @@ class DirectSourceChecker extends SourceChecker {
       new RegExp(".*:\/\/itaku.ee\/api\/.*\/.*\.(png|jpg|jpeg|gif|webm).*"),
       new RegExp(".*:\/\/cdn\.weasyl\.com\/.*\/submissions\/.*\.(png|jpg|jpeg|gif|webm).*"),
       new RegExp(".*:\/\/uploads\.ungrounded\.net\/.*\.(png|jpg|jpeg|gif|webm).*"),
+      new RegExp(".*:\/\/art\.ngfiles\.com\/images\/.*\.(png|jpg|jpeg|gif|webm).*"),
       new RegExp(".*:\/\/nl\.ib\.metapix\.net\/files\/.*\.(png|jpg|jpeg|gif|webm).*"),
     ]
   }
