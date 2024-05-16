@@ -1,14 +1,13 @@
 const SourceChecker = require("../SourceChecker")
 const jsmd5 = require("js-md5")
-const { JSDOM } = require("jsdom")
 
-class FurAffinityChecker extends SourceChecker {
-  static URL_BASE = "https://vxfuraffinity.net/view"
+class SoFurrySourchChecker extends SourceChecker {
+  static URL_BASE = "https://www.sofurryfiles.com/std/content?page="
 
   constructor() {
     super()
 
-    this.SUPPORTED = [new RegExp(".*:\/\/.*furaffinity\.net\/view\/(\d*).*")]
+    this.SUPPORTED = [new RegExp(".*:\/\/.*sofurry\.com\/view\/(\d*).*")]
   }
 
   supportsSource(source) {
@@ -48,24 +47,13 @@ class FurAffinityChecker extends SourceChecker {
   }
 
   async _internalProcessPost(post, source) {
-    let data = (/.*:\/\/.*furaffinity\.net\/view\/(\d*).*/).exec(source)
+    let data = (/.*:\/\/.*sofurry\.com\/view\/(\d*).*/).exec(source)
 
     let id = data[1]
 
     if (id) {
       try {
-        let res = await fetch(`${FurAffinityChecker.URL_BASE}/${id}`, { redirect: "manual" })
-        let html = await res.text()
-        let dom = new JSDOM(html)
-        let document = dom.window.document
-
-        let href = document.querySelector("meta[property='og:image']")?.getAttribute("content")
-
-        if (href) {
-          return await this._processDirectLink(post, href)
-        } else {
-          return { unknown: true }
-        }
+        return await this._processDirectLink(post, `${SoFurrySourchChecker.URL_BASE}${id}`)
       } catch (e) {
         console.error(e)
       }
@@ -91,4 +79,4 @@ class FurAffinityChecker extends SourceChecker {
   }
 }
 
-module.exports = FurAffinityChecker
+module.exports = SoFurrySourchChecker

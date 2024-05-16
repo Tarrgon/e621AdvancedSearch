@@ -1,0 +1,101 @@
+// Doesn't work, also needs account for 18+
+const SourceChecker = require("../SourceChecker")
+const jsmd5 = require("js-md5")
+const { JSDOM } = require("jsdom")
+
+class PixivSourceChecker extends SourceChecker {
+  constructor() {
+    super()
+
+    this.SUPPORTED = [
+      new RegExp(".*:\/\/.*pixiv\.net\/.*artworks\/.*(\d*).*"),
+    ]
+  }
+
+  supportsSource(source) {
+    for (let supported of this.SUPPORTED) {
+      if (supported.test(source)) return true
+    }
+
+    return false
+  }
+
+  async getImagesFrom(source) {
+    try {
+      let res = await fetch(source)
+
+      let html = await res.text()
+      let dom = new JSDOM(html)
+      let document = dom.window.document
+      return Array.from(document.querySelectorAll('main div[role="presentation"] > a')).map(e => ({
+        original: e.href,
+        preview: e.href
+          .replace("/img-original/", "/img-master/")
+          .replace(/.(png|jpg)$/u, "_master1200.jpg")
+      }))
+    } catch (e) {
+      console.error(e)
+      return []
+    }
+  }
+
+  async _internalProcessPost(post, source) {
+    try {
+      let images = await this.getImagesFrom(source)
+
+      let matchData = []
+
+      for (let image of images) {
+        for (let [_, src] of Object.entries(image)) {
+          let res = await fetch(src, { headers: { Referer: "https://www.pixiv.net/" } })
+          let blob = await res.blob()
+          let arrayBuffer = await blob.arrayBuffer()
+
+          let md5 = jsmd5(arrayBuffer)
+
+          let dimensions = await super.getDimensions(blob.type, arrayBuffer)
+
+          let d = {
+            md5Match: md5 == post.md5,
+            dimensionMatch: dimensions.width == post.width && dimensions.height == post.height,
+            fileTypeMatch: SourceChecker.MIME_TYPE_TO_FILE_EXTENSION[blob.type] == post.fileType,
+            fileType: SourceChecker.MIME_TYPE_TO_FILE_EXTENSION[blob.type],
+            dimensions
+          }
+
+          d.score = (d.md5Match * 1000) + (d.dimensionMatch * 500) + d.fileTypeMatch
+
+          matchData.push(d)
+        }
+      }
+
+      if (matchData.length > 0) {
+        matchData.sort((a, b) => b.score - a.score)
+
+        return matchData[0]
+      }
+    } catch (e) {
+      console.error(e)
+    }
+
+    return {
+      md5Match: false,
+      dimensionMatch: false,
+      fileTypeMatch: false
+    }
+  }
+
+  async processPost(post, current) {
+    let data = {}
+    for (let source of post.sources) {
+      if (current?.data?.[source]) continue
+      if (this.supportsSource(source)) {
+        data[source] = await this._internalProcessPost(post, source)
+      }
+    }
+
+    return data
+  }
+}
+
+module.exports = PixivSourceChecker

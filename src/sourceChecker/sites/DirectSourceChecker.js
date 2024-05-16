@@ -5,6 +5,14 @@ class DirectSourceChecker extends SourceChecker {
   constructor() {
     super()
 
+    /**
+     * TODO:
+     * vk.com
+     * InkBunny (not direct)
+     * Itaku (not direct)
+     * Pixiv (not direct)
+     */
+
     this.SUPPORTED = [
       new RegExp(".*:\/\/pbs\.twimg\.com\/media\/.*\.(png|jpg|jpeg).*"),
       new RegExp(".*:\/\/inkbunny\.net\/files\/.*\.(png|jpg|jpeg|gif).*"),
@@ -13,7 +21,7 @@ class DirectSourceChecker extends SourceChecker {
       new RegExp(".*:\/\/artconomy.com\/media\/art\/.*\.(png|jpg|jpeg|gif|webm).*"),
       new RegExp(".*:\/\/images\.artfight\.net\/.*\.(png|jpg|jpeg|gif|webm).*"),
       new RegExp(".*:\/\/cdn.*\.artstation\.com\/p\/assets\/images\/.*\.(png|jpg|jpeg|gif|webm).*"),
-      new RegExp(".*:\/\/derpicdn\.net\/img\/view\/.*\.(png|jpg|jpeg|gif|webm).*"),
+      new RegExp(".*:\/\/derpicdn\.net\/img\/(view|download)\/.*\.(png|jpg|jpeg|gif|webm).*"),
       new RegExp(".*:\/\/images-wixmp-.*\.wixmp\.com\/f\/.*\.(png|jpg|jpeg|gif|webm).*"),
       new RegExp(".*:\/\/dl\.dropboxusercontent\.com\/.*\.(png|jpg|jpeg|gif|webm).*"),
       new RegExp(".*:\/\/.*\.cloudfront\.net\/.*\.(png|jpg|jpeg|gif|webm).*"),
@@ -23,7 +31,8 @@ class DirectSourceChecker extends SourceChecker {
       new RegExp(".*:\/\/art\.ngfiles\.com\/images\/.*\.(png|jpg|jpeg|gif|webm).*"),
       new RegExp(".*:\/\/.*\.ib\.metapix\.net\/files\/.*\.(png|jpg|jpeg|gif|webm).*"),
       new RegExp(".*:\/\/files\.catbox\.moe\/.*\.(png|jpg|jpeg|gif|webm).*"),
-      new RegExp(".*:\/\/i\.imgur\.com\/.*\.(png|jpg|jpeg|gif|webm).*")
+      new RegExp(".*:\/\/i\.imgur\.com\/.*\.(png|jpg|jpeg|gif|webm).*"),
+      new RegExp(".*:\/\/.*sofurryfiles\.com\/.*\?page=(\d*).*")
     ]
   }
 
@@ -43,10 +52,14 @@ class DirectSourceChecker extends SourceChecker {
 
       let md5 = jsmd5(arrayBuffer)
 
+      let dimensions = await super.getDimensions(blob.type, arrayBuffer)
+
       return {
         md5Match: md5 == post.md5,
-        dimensionMatch: await super.dimensionCheck(post, blob.type, arrayBuffer),
-        fileTypeMatch: SourceChecker.MIME_TYPE_TO_FILE_EXTENSION[blob.type] == post.fileType
+        dimensionMatch: dimensions.width == post.width && dimensions.height == post.height,
+        fileTypeMatch: SourceChecker.MIME_TYPE_TO_FILE_EXTENSION[blob.type] == post.fileType,
+        fileType: SourceChecker.MIME_TYPE_TO_FILE_EXTENSION[blob.type],
+        dimensions
       }
     } catch (e) {
       console.error(e)

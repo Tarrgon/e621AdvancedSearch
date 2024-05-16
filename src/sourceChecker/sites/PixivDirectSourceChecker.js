@@ -1,7 +1,7 @@
 const SourceChecker = require("../SourceChecker")
 const jsmd5 = require("js-md5")
 
-class PixivSourceChecker extends SourceChecker {
+class PixivDirectSourceChecker extends SourceChecker {
   constructor() {
     super()
 
@@ -26,10 +26,14 @@ class PixivSourceChecker extends SourceChecker {
 
       let md5 = jsmd5(arrayBuffer)
 
+      let dimensions = await super.getDimensions(blob.type, arrayBuffer)
+
       return {
         md5Match: md5 == post.md5,
-        dimensionMatch: await super.dimensionCheck(post, blob.type, arrayBuffer),
-        fileTypeMatch: SourceChecker.MIME_TYPE_TO_FILE_EXTENSION[blob.type] == post.fileType
+        dimensionMatch: dimensions.width == post.width && dimensions.height == post.height,
+        fileTypeMatch: SourceChecker.MIME_TYPE_TO_FILE_EXTENSION[blob.type] == post.fileType,
+        fileType: SourceChecker.MIME_TYPE_TO_FILE_EXTENSION[blob.type],
+        dimensions
       }
     } catch (e) {
       console.error(e)
@@ -55,4 +59,4 @@ class PixivSourceChecker extends SourceChecker {
   }
 }
 
-module.exports = PixivSourceChecker
+module.exports = PixivDirectSourceChecker

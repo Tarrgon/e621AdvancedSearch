@@ -296,6 +296,24 @@ class SourceChecker {
     throw new NotImplementedError()
   }
 
+  async getDimensions(type, arrayBuffer) {
+    try {
+      if (type != "video/webm") {
+        const dimensions = sizeOf(Buffer.from(arrayBuffer))
+        return { width: dimensions.width, height: dimensions.height }
+      } else {
+        WebmParser.parseWebm(Buffer.from(arrayBuffer))
+        if (WebmParser.hasHeight && WebmParser.hasWidth) {
+          return { width: WebmParser.curWidth, height: WebmParser.curHeight }
+        }
+      }
+    } catch (e) {
+      console.error(e)
+    }
+
+    return { width: -1, height: -1 }
+  }
+
   async dimensionCheck(post, type, arrayBuffer) {
     try {
       if (type != "video/webm") {
@@ -307,7 +325,7 @@ class SourceChecker {
           return WebmParser.curWidth == post.width && WebmParser.curHeight == post.height
         }
       }
-    } catch(e) {
+    } catch (e) {
       console.error(e)
     }
 

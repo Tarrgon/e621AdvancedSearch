@@ -34,30 +34,6 @@ class TwitterChecker extends SourceChecker {
     return false
   }
 
-  async _processDirectLink(post, source) {
-    try {
-      let res = await fetch(source)
-      let blob = await res.blob()
-      let arrayBuffer = await blob.arrayBuffer()
-
-      let md5 = jsmd5(arrayBuffer)
-
-      return {
-        md5Match: md5 == post.md5,
-        dimensionMatch: await super.dimensionCheck(post, blob.type, arrayBuffer),
-        fileTypeMatch: SourceChecker.MIME_TYPE_TO_FILE_EXTENSION[blob.type] == post.fileType
-      }
-    } catch (e) {
-      console.error(e)
-    }
-
-    return {
-      md5Match: false,
-      dimensionMatch: false,
-      fileTypeMatch: false
-    }
-  }
-
   async _internalProcessPost(post, source) {
     let data = (/.*:\/\/(x|twitter)\.com\/.*\/status\/(\d+).*/).exec(source)
 
@@ -76,10 +52,14 @@ class TwitterChecker extends SourceChecker {
 
               let md5 = jsmd5(arrayBuffer)
 
+              let dimensions = await super.getDimensions(blob.type, arrayBuffer)
+
               let d = {
                 md5Match: md5 == post.md5,
-                dimensionMatch: await super.dimensionCheck(post, blob.type, arrayBuffer),
-                fileTypeMatch: SourceChecker.MIME_TYPE_TO_FILE_EXTENSION[blob.type] == post.fileType
+                dimensionMatch: dimensions.width == post.width && dimensions.height == post.height,
+                fileTypeMatch: SourceChecker.MIME_TYPE_TO_FILE_EXTENSION[blob.type] == post.fileType,
+                fileType: SourceChecker.MIME_TYPE_TO_FILE_EXTENSION[blob.type],
+                dimensions
               }
 
               d.score = (d.md5Match * 1000) + (d.dimensionMatch * 500) + d.fileTypeMatch
