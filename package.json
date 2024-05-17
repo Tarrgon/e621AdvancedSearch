@@ -14,7 +14,9 @@
     "jsdom": "^24.0.0",
     "mongodb": "^6.1.0",
     "node-cache": "^5.1.2",
-    "node-cron": "^3.0.2"
+    "node-cron": "^3.0.2",
+    "parse-srcset": "^1.0.2",
+    "puppeteer": "^22.9.0"
   },
   "scripts": {
     "start": "node ./src/website/bin/www --max-old-space-size=4096"

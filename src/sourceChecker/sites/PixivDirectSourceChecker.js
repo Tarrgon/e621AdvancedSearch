@@ -36,6 +36,7 @@ class PixivDirectSourceChecker extends SourceChecker {
         dimensions
       }
     } catch (e) {
+      console.error(post.id, source)
       console.error(e)
     }
 

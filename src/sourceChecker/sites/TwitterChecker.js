@@ -75,6 +75,7 @@ class TwitterChecker extends SourceChecker {
           }
         }
       } catch (e) {
+        console.error(post.id, source)
         console.error(e)
         if (e.message == "Exhausted") return await this._internalProcessPost(post, source)
       }

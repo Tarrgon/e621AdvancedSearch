@@ -75,6 +75,7 @@ class PixivSourceChecker extends SourceChecker {
         return matchData[0]
       }
     } catch (e) {
+      console.error(post.id, source)
       console.error(e)
     }
 

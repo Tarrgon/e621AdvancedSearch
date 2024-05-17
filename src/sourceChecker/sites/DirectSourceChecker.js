@@ -32,7 +32,8 @@ class DirectSourceChecker extends SourceChecker {
       new RegExp(".*:\/\/.*\.ib\.metapix\.net\/files\/.*\.(png|jpg|jpeg|gif|webm).*"),
       new RegExp(".*:\/\/files\.catbox\.moe\/.*\.(png|jpg|jpeg|gif|webm).*"),
       new RegExp(".*:\/\/i\.imgur\.com\/.*\.(png|jpg|jpeg|gif|webm).*"),
-      new RegExp(".*:\/\/.*sofurryfiles\.com\/.*\?page=(\d*).*")
+      new RegExp(".*:\/\/.*sofurryfiles\.com\/.*\?page=(\d*).*"),
+      new RegExp(".*:\/\/img\.pawoo\.net\/.*\.(png|jpg|jpeg|gif|webm).*")
     ]
   }
 
