@@ -148,8 +148,11 @@ class SourceCheckerManager {
   async processPost(post) {
     let combinedData = {}
 
+    let current = await this.db.collection("sourceChecker").findOne({ _id: post._id })
+
+    if (current.data) combinedData = current.data
+
     for (let sourceChecker of this.sourceCheckers) {
-      let current = await this.db.collection("sourceChecker").findOne({ _id: post._id })
       let data = await sourceChecker.processPost(post, current)
       for (let [key, value] of Object.entries(data)) {
         combinedData[key] = value
