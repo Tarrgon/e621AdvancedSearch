@@ -1,4 +1,5 @@
 const sizeOf = require("buffer-image-size")
+const DetectFileType = require("./DetectFileType")
 
 class NotImplementedError extends Error {
   constructor() {
@@ -280,14 +281,6 @@ class WebmParser {
 }
 
 class SourceChecker {
-  static MIME_TYPE_TO_FILE_EXTENSION = {
-    "image/png": "png",
-    "image/apng": "png",
-    "image/jpeg": "jpg",
-    "image/gif": "gif",
-    "video/webm": "webm"
-  }
-
   processPost(post, current) {
     throw new NotImplementedError()
   }
@@ -312,6 +305,15 @@ class SourceChecker {
     }
 
     return { width: -1, height: -1 }
+  }
+
+  async getRealFileType(arrayBuffer) {
+    try {
+      return (await DetectFileType.fromBuffer(arrayBuffer))?.ext
+    } catch(e) {
+      console.error(e)
+      return null
+    }
   }
 
   async dimensionCheck(post, type, arrayBuffer) {

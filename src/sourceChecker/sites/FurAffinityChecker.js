@@ -29,11 +29,22 @@ class FurAffinityChecker extends SourceChecker {
 
       let dimensions = await super.getDimensions(blob.type, arrayBuffer)
 
+      let realFileType = await this.getRealFileType(arrayBuffer)
+
+      if (!realFileType) {
+        return {
+          unsupported: true,
+          md5Match: false,
+          dimensionMatch: false,
+          fileTypeMatch: false
+        }
+      }
+
       return {
         md5Match: md5 == post.md5,
         dimensionMatch: dimensions.width == post.width && dimensions.height == post.height,
-        fileTypeMatch: SourceChecker.MIME_TYPE_TO_FILE_EXTENSION[blob.type] == post.fileType,
-        fileType: SourceChecker.MIME_TYPE_TO_FILE_EXTENSION[blob.type],
+        fileTypeMatch: realFileType == post.fileType,
+        fileType: realFileType,
         dimensions
       }
     } catch (e) {
