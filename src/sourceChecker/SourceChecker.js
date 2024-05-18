@@ -280,7 +280,28 @@ class WebmParser {
   }
 }
 
+const puppeteer = require("puppeteer")
+const parseSrcset = require("parse-srcset")
+
 class SourceChecker {
+  constructor() {
+    this.puppetReady = false
+
+    puppeteer.launch({ headless: true, args: ["--no-sandbox"] }).then((browser) => {
+      this.browser = browser
+      this.puppetReady = true
+    })
+  }
+
+  async waitForSelectorOrNull(e, selector, ms) {
+    try {
+      return await e.waitForSelector(selector, { timeout: ms })
+    } catch(e) {
+      if (e instanceof puppeteer.TimeoutError) return null
+      else throw e
+    }
+  }
+
   processPost(post, current) {
     throw new NotImplementedError()
   }
@@ -310,7 +331,7 @@ class SourceChecker {
   async getRealFileType(arrayBuffer) {
     try {
       return (await DetectFileType.fromBuffer(arrayBuffer))?.ext
-    } catch(e) {
+    } catch (e) {
       console.error(e)
       return null
     }

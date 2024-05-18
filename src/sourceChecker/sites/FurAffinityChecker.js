@@ -48,11 +48,13 @@ class FurAffinityChecker extends SourceChecker {
         dimensions
       }
     } catch (e) {
-      console.error(post.id, source)
+      console.error(post._id, source)
       console.error(e)
     }
 
     return {
+      unknown: true,
+      error: true,
       md5Match: false,
       dimensionMatch: false,
       fileTypeMatch: false
@@ -84,6 +86,8 @@ class FurAffinityChecker extends SourceChecker {
     }
 
     return {
+      unknown: true,
+      error: true,
       md5Match: false,
       dimensionMatch: false,
       fileTypeMatch: false

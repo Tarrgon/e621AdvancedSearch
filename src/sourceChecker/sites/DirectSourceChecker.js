@@ -78,6 +78,8 @@ class DirectSourceChecker extends SourceChecker {
     }
 
     return {
+      unknown: true,
+      error: true,
       md5Match: false,
       dimensionMatch: false,
       fileTypeMatch: false

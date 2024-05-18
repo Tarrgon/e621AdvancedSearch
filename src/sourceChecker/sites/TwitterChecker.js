@@ -86,13 +86,15 @@ class TwitterChecker extends SourceChecker {
           }
         }
       } catch (e) {
-        console.error(post.id, source)
+        console.error(post._id, source)
         console.error(e)
         if (e.message == "Exhausted") return await this._internalProcessPost(post, source)
       }
     }
 
     return {
+      unknown: true,
+      error: true,
       md5Match: false,
       dimensionMatch: false,
       fileTypeMatch: false

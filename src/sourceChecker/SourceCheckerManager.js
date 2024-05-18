@@ -51,6 +51,18 @@ class SourceCheckerManager {
     return false
   }
 
+  getSupportedSources(post) {
+    let supported = []
+
+    for (let source of post.sources) {
+      for (let sourceChecker of this.sourceCheckers) {
+        if (sourceChecker.supportsSource(source)) supported.push(source)
+      }
+    }
+
+    return supported
+  }
+
   isSupportedSource(source) {
     for (let sourceChecker of this.sourceCheckers) {
       if (sourceChecker.supportsSource(source)) return true
@@ -166,11 +178,15 @@ class SourceCheckerManager {
     try {
       let data = await this.db.collection("sourceChecker").findOne({ _id: parseInt(id) })
 
+      let post = await this.utils.getPost(id)
+
+      let supportedSources = []
+      if (post) supportedSources = this.getSupportedSources(post)
+
       if (!data || !data.data) {
-        let post = await this.utils.getPost(id)
         if (!post) return { notIndexed: true, notPending: true }
         if (!post.isPending) return { notPending: true }
-        if (post.isDeleted || post.sources.length == 0 || !this.hasAnySupportedSources(post)) return { unsupported: true }
+        if (post.isDeleted || post.sources.length == 0 || supportedSources.length == 0) return { unsupported: true }
 
         let index = -1
         if ((index = this.queue.findIndex(p => p._id == id)) == -1) {
@@ -178,6 +194,13 @@ class SourceCheckerManager {
         }
 
         return { queued: true }
+      }
+
+      if (post && supportedSources.some(s => !data.data[s])) {
+        let index = -1
+        if ((index = this.queue.findIndex(p => p._id == id)) == -1) {
+          await this.queuePosts([post])
+        }
       }
 
       return data.data
