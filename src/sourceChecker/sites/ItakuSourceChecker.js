@@ -9,7 +9,6 @@ class ItakuSourceChecker extends SourceChecker {
   constructor() {
     super()
 
-    // https://itaku.ee/images/830475
     this.SUPPORTED = [new RegExp(".*:\/\/itaku\.ee\/images\/(\d*).*")]
   }
 

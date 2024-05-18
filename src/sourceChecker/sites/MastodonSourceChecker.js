@@ -5,11 +5,14 @@ function wait(ms) {
   return new Promise(r => setTimeout(r, ms))
 }
 
-class PawooSourceChecker extends SourceChecker {
+class MastodonSourceChecker extends SourceChecker {
   constructor() {
     super()
 
-    this.SUPPORTED = [new RegExp(".*:\/\/pawoo\.net\/@.*\/(\d*).*")]
+    this.SUPPORTED = [
+      new RegExp(".*:\/\/pawoo\.net\/@.*\/(\d*).*"),
+      new RegExp(".*:\/\/pawb\.fun\/@.*\/(\d*).*")
+    ]
 
   }
 
@@ -131,4 +134,4 @@ class PawooSourceChecker extends SourceChecker {
   }
 }
 
-module.exports = PawooSourceChecker
+module.exports = MastodonSourceChecker
