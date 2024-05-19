@@ -117,7 +117,9 @@ const META_TAGS_TO_FIELD_NAMES = {
   inparent: "inParent",
   inchild: "inChild",
   inancestor: "inAncestor",
-  indescendant: "inDescendant"
+  indescendant: "inDescendant",
+
+  hasmd5match: "hasMD5Match"
 }
 
 const META_TAGS = ["order", "user", "approver", "id", "score", "favcount", "favoritecount", "commentcount", "comment_count",
@@ -133,7 +135,8 @@ const META_TAGS = ["order", "user", "approver", "id", "score", "favcount", "favo
   "tagcount",
   "gentags", "arttags", "chartags", "copytags", "spectags", "invtags", "lortags", "loretags", "metatags", "rating", "type",
   "width", "height", "mpixels", "megapixels", "ratio", "filesize", "status", "date", "source", "ischild", "isparent", "parent", "hassource",
-  "ratinglocked", "notelocked", "md5", "duration", "inparent", "inchild", "inancestor", "indescendant", "randseed", "rankdate"
+  "ratinglocked", "notelocked", "md5", "duration", "inparent", "inchild", "inancestor", "indescendant", "randseed", "rankdate",
+  "hasmd5match"
 ]
 
 const TAG_CATEGORIES_TO_CATEGORY_ID = {
@@ -1862,7 +1865,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
     let oldId = (await this.getTagByName(oldName))?.id
 
     if (!oldId) return
-    
+
     let implications = (await this.getAllImplicationsWithAntecendent(oldId)).concat(await this.getAllImplicationsWithConsequent(oldId))
 
     for (let implication of implications) {
@@ -1909,12 +1912,17 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
         try {
           tagGroup[i] = usedTags.find(t => t.id == tagGroup[i]).name
         } catch (e) {
+          // let tag = await this.getNewTagById(tagGroup[i])
+          // if (tag) {
+          //   tagGroup[i] = tag.name
+          // } else {
           console.error("Error converting tags ids to tags")
           console.error(e)
           console.error(post)
           console.error(asFlat)
           console.error(usedTags)
           console.error(`Tag: ${tagGroup[i]}`)
+          // }
         }
       }
     }
@@ -2511,6 +2519,18 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
         //     }
         //   }
 
+        case "hasMD5Match": {
+          return {
+            customFilter: true,
+            filter: async (post) => {
+              let source = await this.mongoDatabase.collection("sourceChecker").findOne({ _id: post.id })
+              if (!source || !source.data) return false
+
+              return Object.values(source.data).some(d => value == "true" ? d.md5Match : !d.md5Match)
+            }
+          }
+        }
+
         default:
           return { ignore: true }
       }
@@ -2521,7 +2541,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
     if (tags.length == 0) return [true, null]
     let tokenizer = new Tokenizer(tags)
     let currentGroupIndex = []
-    let group = { tokens: [], groups: [], orderTags: [], parsedMetaTags: [] }
+    let group = { tokens: [], groups: [], orderTags: [], customFilters: [], parsedMetaTags: [] }
 
     for (let token of tokenizer) {
       let curGroup = group
@@ -2538,7 +2558,9 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
       } else {
         let parsedMetaTag = this.metaTagParser(token, tokenizer)
         if (parsedMetaTag) {
-          if (parsedMetaTag.isOrderTag) {
+          if (parsedMetaTag.customFilter) {
+            group.customFilters.push(parsedMetaTag.filter)
+          } else if (parsedMetaTag.isOrderTag) {
             if (parsedMetaTag.random) {
               group.orderTags.push({ random: true })
             } else if (parsedMetaTag.randomSeed !== undefined) {
@@ -2921,6 +2943,23 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
 
       if (res.hits.hits.length > 0) response.searchAfter = res.hits.hits[res.hits.hits.length - 1].sort
 
+      if (group.customFilters.length > 0) {
+        let filtered = []
+
+        for (let post of posts) {
+          let passed = true
+          for (let customFilter of group.customFilters) {
+            if (!await customFilter(post)) {
+              passed = false
+              break
+            }
+          }
+          if (passed) filtered.push(post)
+        }
+
+        response.posts = filtered
+      }
+
       return response
     } catch (e) {
       console.error(JSON.stringify(e, null, 4))
@@ -3225,7 +3264,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
 
   async postNewPosts(posts) {
     this.sourceCheckerManager.queuePosts(posts)
-    
+
     await this.processPostSearchResponse(posts)
     let postData = JSON.stringify({ newPosts: posts })
     for await (let webhook of this.mongoDatabase.collection("webhooks").find({ listenNewPosts: true })) {
