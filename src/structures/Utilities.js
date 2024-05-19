@@ -2574,22 +2574,22 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
                 if (sourceData.dimensions && sourceData.fileType) {
                   if (sourceData.dimensions.width > width && sourceData.dimensions.height > height) {
                     if (fileType == "jpg" && sourceData.fileType == "png") {
-                      return true
+                      return value == "true"
                     } else if (fileType == "png" && sourceData.fileType == "jpg") {
                       if (sourceData.dimensions.width >= width * 3 && sourceData.dimensions.height >= height * 3) {
-                        return true
+                        return value == "true"
                       } else if (sourceData.dimensions.width >= width * 2 && sourceData.dimensions.height >= height * 2) {
-                        return true
+                        return value == "true"
                       }
                     }
                   } else if (fileType == "jpg" && sourceData.fileType == "png") {
                     if (width <= sourceData.dimensions.width * 1.5 && height <= sourceData.dimensions.height * 1.5) {
-                      return true
+                      return value == "true"
                     }
                   }
                 }
 
-                return false
+                return value == "false"
               })
             }
           }
