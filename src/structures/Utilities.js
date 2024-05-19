@@ -119,7 +119,10 @@ const META_TAGS_TO_FIELD_NAMES = {
   inancestor: "inAncestor",
   indescendant: "inDescendant",
 
-  hasmd5match: "hasMD5Match"
+  hasmd5match: "hasMD5Match",
+  hasdimensionmatch: "hasDimensionMatch",
+  hasfiletypematch: "hasFileTypeMatch",
+  haspbvas: "hasPotentalBetterVersionAtSource"
 }
 
 const META_TAGS = ["order", "user", "approver", "id", "score", "favcount", "favoritecount", "commentcount", "comment_count",
@@ -136,7 +139,8 @@ const META_TAGS = ["order", "user", "approver", "id", "score", "favcount", "favo
   "gentags", "arttags", "chartags", "copytags", "spectags", "invtags", "lortags", "loretags", "metatags", "rating", "type",
   "width", "height", "mpixels", "megapixels", "ratio", "filesize", "status", "date", "source", "ischild", "isparent", "parent", "hassource",
   "ratinglocked", "notelocked", "md5", "duration", "inparent", "inchild", "inancestor", "indescendant", "randseed", "rankdate",
-  "hasmd5match"
+
+  "hasmd5match", "hasdimensionmatch", "hasfiletypematch", "haspbvas"
 ]
 
 const TAG_CATEGORIES_TO_CATEGORY_ID = {
@@ -2524,9 +2528,69 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
             customFilter: true,
             filter: async (post) => {
               let source = await this.mongoDatabase.collection("sourceChecker").findOne({ _id: post.id })
-              if (!source || !source.data) return false
+              if (!source || !source.data) return value == "false"
 
               return Object.values(source.data).some(d => value == "true" ? d.md5Match : !d.md5Match)
+            }
+          }
+        }
+
+        case "hasFileTypeMatch": {
+          return {
+            customFilter: true,
+            filter: async (post) => {
+              let source = await this.mongoDatabase.collection("sourceChecker").findOne({ _id: post.id })
+              if (!source || !source.data) return value == "false"
+
+              return Object.values(source.data).some(d => value == "true" ? d.fileTypeMatch : !d.fileTypeMatch)
+            }
+          }
+        }
+
+        case "hasDimensionMatch": {
+          return {
+            customFilter: true,
+            filter: async (post) => {
+              let source = await this.mongoDatabase.collection("sourceChecker").findOne({ _id: post.id })
+              if (!source || !source.data) return value == "false"
+
+              return Object.values(source.data).some(d => value == "true" ? d.dimensionMatch : !d.dimensionMatch)
+            }
+          }
+        }
+
+        case "hasPotentalBetterVersionAtSource": {
+          return {
+            customFilter: true,
+            filter: async (post) => {
+              let source = await this.mongoDatabase.collection("sourceChecker").findOne({ _id: post.id })
+              if (!source || !source.data) return value == "false"
+
+              let width = post.width
+              let height = post.height
+              let fileType = post.fileType
+
+              return Object.values(source.data).some(sourceData => {
+                if (sourceData.dimensions && sourceData.fileType) {
+                  if (sourceData.dimensions.width > width && sourceData.dimensions.height > height) {
+                    if (fileType == "jpg" && sourceData.fileType == "png") {
+                      return true
+                    } else if (fileType == "png" && sourceData.fileType == "jpg") {
+                      if (sourceData.dimensions.width >= width * 3 && sourceData.dimensions.height >= height * 3) {
+                        return true
+                      } else if (sourceData.dimensions.width >= width * 2 && sourceData.dimensions.height >= height * 2) {
+                        return true
+                      }
+                    }
+                  } else if (fileType == "jpg" && sourceData.fileType == "png") {
+                    if (width <= sourceData.dimensions.width * 1.5 && height <= sourceData.dimensions.height * 1.5) {
+                      return true
+                    }
+                  }
+                }
+
+                return false
+              })
             }
           }
         }
@@ -2962,6 +3026,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
 
       return response
     } catch (e) {
+      console.error(e)
       console.error(JSON.stringify(e, null, 4))
 
       return { status: 500, message: "Internal server error" }
