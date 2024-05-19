@@ -15,6 +15,7 @@ class DirectSourceChecker extends SourceChecker {
 
     this.SUPPORTED = [
       /.*:\/\/pbs\.twimg\.com\/media\/.*\.(png|jpg|jpeg).*/,
+      /.*:\/\/pbs\.twimg\.com\/media\/.*\?format=(png|jpg|jpeg).*/,
       /.*:\/\/inkbunny\.net\/files\/.*\.(png|jpg|jpeg|gif).*/,
       /.*:\/\/d\.furaffinity\.net\/art\/.*\.(png|jpg|jpeg|gif).*/,
       /.*:\/\/media\.baraag\.net\/media_attachments\/.*\.(png|jpg|jpeg|gif).*/,
