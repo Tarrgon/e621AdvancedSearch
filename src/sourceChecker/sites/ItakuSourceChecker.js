@@ -7,9 +7,9 @@ function wait(ms) {
 
 class ItakuSourceChecker extends SourceChecker {
   constructor() {
-    super()
+    super(true, false)
 
-    this.SUPPORTED = [new RegExp(".*:\/\/itaku\.ee\/images\/(\d*).*")]
+    this.SUPPORTED = [/.*:\/\/itaku\.ee\/images\/(\d+).*/]
   }
 
   supportsSource(source) {

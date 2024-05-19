@@ -7,7 +7,7 @@ class SoFurrySourchChecker extends SourceChecker {
   constructor() {
     super()
 
-    this.SUPPORTED = [new RegExp(".*:\/\/.*sofurry\.com\/view\/(\d*).*")]
+    this.SUPPORTED = [/.*:\/\/.*sofurry\.com\/view\/(\d+).*/]
   }
 
   supportsSource(source) {
@@ -61,7 +61,7 @@ class SoFurrySourchChecker extends SourceChecker {
   }
 
   async _internalProcessPost(post, source) {
-    let data = (/.*:\/\/.*sofurry\.com\/view\/(\d*).*/).exec(source)
+    let data = (/.*:\/\/.*sofurry\.com\/view\/(\d+).*/).exec(source)
 
     let id = data[1]
 

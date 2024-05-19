@@ -281,22 +281,33 @@ class WebmParser {
 }
 
 const puppeteer = require("puppeteer")
-const parseSrcset = require("parse-srcset")
 
 class SourceChecker {
-  constructor() {
-    this.puppetReady = false
+  static MIME_TYPE_TO_FILE_EXTENSION = {
+    "image/png": "png",
+    "image/apng": "png",
+    "image/jpeg": "jpg",
+    "image/gif": "gif",
+    "video/webm": "webm"
+  }
+  
+  constructor(requiresPuppet, requiresPuppetSetup) {
+    if (requiresPuppet) {
+      this.puppetReady = false
 
-    puppeteer.launch({ headless: true, args: ["--no-sandbox"] }).then((browser) => {
-      this.browser = browser
-      this.puppetReady = true
-    })
+      puppeteer.launch({ headless: true, args: ["--no-sandbox"] }).then((browser) => {
+        this.browser = browser
+        if (!requiresPuppetSetup) this.puppetReady = true
+      })
+
+      if (requiresPuppetSetup) this.puppetSetup()
+    }
   }
 
   async waitForSelectorOrNull(e, selector, ms) {
     try {
       return await e.waitForSelector(selector, { timeout: ms })
-    } catch(e) {
+    } catch (e) {
       if (e instanceof puppeteer.TimeoutError) return null
       else throw e
     }

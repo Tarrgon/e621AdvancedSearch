@@ -1,5 +1,6 @@
 const SourceChecker = require("../SourceChecker")
 const jsmd5 = require("js-md5")
+const parseSrcset = require("parse-srcset")
 
 function wait(ms) {
   return new Promise(r => setTimeout(r, ms))
@@ -7,11 +8,12 @@ function wait(ms) {
 
 class MastodonSourceChecker extends SourceChecker {
   constructor() {
-    super()
+    super(true, false)
 
     this.SUPPORTED = [
-      new RegExp(".*:\/\/pawoo\.net\/@.*\/(\d*).*"),
-      new RegExp(".*:\/\/pawb\.fun\/@.*\/(\d*).*")
+      /.*:\/\/pawoo\.net\/@.*\/(\d+).*/,
+      /.*:\/\/pawb\.fun\/@.*\/(\d+).*/,
+      /.*:\/\/baraag\.net\/@.*\/(\d+).*/
     ]
 
   }

@@ -8,7 +8,7 @@ class FurAffinityChecker extends SourceChecker {
   constructor() {
     super()
 
-    this.SUPPORTED = [new RegExp(".*:\/\/.*furaffinity\.net\/view\/(\d*).*")]
+    this.SUPPORTED = [/.*:\/\/.*furaffinity\.net\/view\/(\d+).*/]
   }
 
   supportsSource(source) {
@@ -62,7 +62,7 @@ class FurAffinityChecker extends SourceChecker {
   }
 
   async _internalProcessPost(post, source) {
-    let data = (/.*:\/\/.*furaffinity\.net\/view\/(\d*).*/).exec(source)
+    let data = (/.*:\/\/.*furaffinity\.net\/view\/(\d+).*/).exec(source)
 
     let id = data[1]
 
