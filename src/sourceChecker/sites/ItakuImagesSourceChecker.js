@@ -5,7 +5,7 @@ function wait(ms) {
   return new Promise(r => setTimeout(r, ms))
 }
 
-class ItakuSourceChecker extends SourceChecker {
+class ItakuImagesSourceChecker extends SourceChecker {
   constructor() {
     super(true, false)
 
@@ -113,4 +113,4 @@ class ItakuSourceChecker extends SourceChecker {
   }
 }
 
-module.exports = ItakuSourceChecker
+module.exports = ItakuImagesSourceChecker

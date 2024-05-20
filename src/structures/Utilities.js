@@ -124,6 +124,7 @@ const META_TAGS_TO_FIELD_NAMES = {
   hasmd5match: "hasMD5Match",
   hasdimensionmatch: "hasDimensionMatch",
   hasfiletypematch: "hasFileTypeMatch",
+  hasdimensionandfiletypematch: "hasDimensionAndFileTypeMatch",
   haspbvas: "hasPotentalBetterVersionAtSource"
 }
 
@@ -144,7 +145,7 @@ const META_TAGS = ["order", "user", "approver", "id", "score", "favcount", "favo
 
   "uploaderverified",
 
-  "hasmd5match", "hasdimensionmatch", "hasfiletypematch", "haspbvas"
+  "hasmd5match", "hasdimensionmatch", "hasfiletypematch", "hasdimensionandfiletypematch", "haspbvas"
 ]
 
 const TAG_CATEGORIES_TO_CATEGORY_ID = {
@@ -2609,7 +2610,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
             setup: async (posts) => {
               let allUploaderIds = posts.map(p => p.uploaderId)
               let allLinks = await this.mongoDatabase.collection("artists").find({ linked_user_id: { $in: allUploaderIds } }).toArray()
-              
+
               return allLinks
             },
             filter: async (post, setupData) => {
@@ -2625,8 +2626,14 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
         case "hasMD5Match": {
           return {
             customFilter: true,
-            filter: async (post) => {
-              let source = await this.mongoDatabase.collection("sourceChecker").findOne({ _id: post.id })
+            setup: async (posts) => {
+              let allPostIds = posts.map(p => p.id)
+              let allSources = await this.mongoDatabase.collection("sourceChecker").find({ _id: { $in: allPostIds } }).toArray()
+
+              return allSources
+            },
+            filter: async (post, setupData) => {
+              let source = setupData.find(p => p._id == post.id)
               if (!source || !source.data) return value == "false"
 
               return Object.values(source.data).some(d => value == "true" ? d.md5Match : !d.md5Match)
@@ -2637,8 +2644,14 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
         case "hasFileTypeMatch": {
           return {
             customFilter: true,
-            filter: async (post) => {
-              let source = await this.mongoDatabase.collection("sourceChecker").findOne({ _id: post.id })
+            setup: async (posts) => {
+              let allPostIds = posts.map(p => p.id)
+              let allSources = await this.mongoDatabase.collection("sourceChecker").find({ _id: { $in: allPostIds } }).toArray()
+
+              return allSources
+            },
+            filter: async (post, setupData) => {
+              let source = setupData.find(p => p._id == post.id)
               if (!source || !source.data) return value == "false"
 
               return Object.values(source.data).some(d => value == "true" ? d.fileTypeMatch : !d.fileTypeMatch)
@@ -2649,8 +2662,14 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
         case "hasDimensionMatch": {
           return {
             customFilter: true,
-            filter: async (post) => {
-              let source = await this.mongoDatabase.collection("sourceChecker").findOne({ _id: post.id })
+            setup: async (posts) => {
+              let allPostIds = posts.map(p => p.id)
+              let allSources = await this.mongoDatabase.collection("sourceChecker").find({ _id: { $in: allPostIds } }).toArray()
+
+              return allSources
+            },
+            filter: async (post, setupData) => {
+              let source = setupData.find(p => p._id == post.id)
               if (!source || !source.data) return value == "false"
 
               return Object.values(source.data).some(d => value == "true" ? d.dimensionMatch : !d.dimensionMatch)
@@ -2658,11 +2677,35 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
           }
         }
 
+        case "hasDimensionAndFileTypeMatch": {
+          return {
+            customFilter: true,
+            setup: async (posts) => {
+              let allPostIds = posts.map(p => p.id)
+              let allSources = await this.mongoDatabase.collection("sourceChecker").find({ _id: { $in: allPostIds } }).toArray()
+
+              return allSources
+            },
+            filter: async (post, setupData) => {
+              let source = setupData.find(p => p._id == post.id)
+              if (!source || !source.data) return value == "false"
+
+              return Object.values(source.data).some(d => value == "true" ? d.dimensionMatch && d.fileTypeMatch : !d.dimensionMatch && !d.fileTypeMatch)
+            }
+          }
+        }
+
         case "hasPotentalBetterVersionAtSource": {
           return {
             customFilter: true,
-            filter: async (post) => {
-              let source = await this.mongoDatabase.collection("sourceChecker").findOne({ _id: post.id })
+            setup: async (posts) => {
+              let allPostIds = posts.map(p => p.id)
+              let allSources = await this.mongoDatabase.collection("sourceChecker").find({ _id: { $in: allPostIds } }).toArray()
+
+              return allSources
+            },
+            filter: async (post, setupData) => {
+              let source = setupData.find(p => p._id == post.id)
               if (!source || !source.data) return value == "false"
 
               let width = post.width
@@ -2679,10 +2722,16 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
                         return value == "true"
                       } else if (sourceData.dimensions.width >= width * 2 && sourceData.dimensions.height >= height * 2) {
                         return value == "true"
+                      } else if (fileType == sourceData.fileType) {
+                        return value == "true"
                       }
                     }
                   } else if (fileType == "jpg" && sourceData.fileType == "png") {
                     if (width <= sourceData.dimensions.width * 1.5 && height <= sourceData.dimensions.height * 1.5) {
+                      return value == "true"
+                    }
+                  } else if (fileType == sourceData.fileType) {
+                    if (sourceData.dimensions.width > width || sourceData.dimensions.height > height) {
                       return value == "true"
                     }
                   }
@@ -3118,7 +3167,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
         for (let post of posts) {
           let passed = true
           for (let customFilter of group.customFilters) {
-            if (!await customFilter.filter(post, setupData.get(customFilter))) {
+            if (!(await customFilter.filter(post, setupData.get(customFilter)))) {
               passed = false
               break
             }

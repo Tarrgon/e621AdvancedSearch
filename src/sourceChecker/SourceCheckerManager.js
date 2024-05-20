@@ -28,11 +28,11 @@ class SourceCheckerManager {
 
   async pruneRoutine() {
     let pruneDate = new Date(Date.now() - 2592000000)
-    await this.db.collection("sourceChecker").deleteMany({ createdAt: { $lte: pruneDate } })
+    await this.db.collection("sourceChecker").deleteMany({ date: { $lte: pruneDate } })
 
     if (this.queue.length > 0) {
       for (let i = this.queue.length; i >= 0; i--) {
-        if (this.queue[i] && this.queue[i].createdAt <= pruneDate) {
+        if (this.queue[i] && this.queue[i].checkedAt <= pruneDate) {
           this.queue.splice(i, 1)
         }
       }
@@ -71,11 +71,11 @@ class SourceCheckerManager {
     return false
   }
 
-  async queuePosts(posts) {
+  async queuePosts(posts, force = false) {
     let postsToQueue = []
 
     for (let post of posts) {
-      if (!post.isPending || post.isDeleted || post.sources.length == 0 || !this.hasAnySupportedSources(post)) {
+      if ((!post.isPending && !force) || post.isDeleted || post.sources.length == 0 || !this.hasAnySupportedSources(post)) {
         let index = -1
         if ((index = this.queue.findIndex(p => p._id == post.id)) != -1) this.queue.splice(index, 1)
         continue
@@ -88,10 +88,11 @@ class SourceCheckerManager {
 
         if (allSourcesChecked) continue
 
-        if (current.checked) await this.db.collection("sourceChecker").updateOne({ _id: post.id }, { $set: { checked: false, sources: post.sources } })
+        if (current.checked) await this.db.collection("sourceChecker").updateOne({ _id: post.id }, { $set: { checked: false, date: new Date(), sources: post.sources } })
 
         let toQueue = {
           _id: post.id,
+          date: new Date(),
           createdAt: post.createdAt,
           sources: post.sources,
           width: post.width,
@@ -114,6 +115,7 @@ class SourceCheckerManager {
 
       let toQueue = {
         _id: post.id,
+        date: new Date(),
         createdAt: post.createdAt,
         sources: post.sources,
         width: post.width,
@@ -150,7 +152,7 @@ class SourceCheckerManager {
     let post = this.queue.shift()
     console.log("Beginning processing")
     let data = await this.processPost(post)
-    await this.db.collection("sourceChecker").updateOne({ _id: post._id }, { $set: { checked: true, data } })
+    await this.db.collection("sourceChecker").updateOne({ _id: post._id }, { $set: { checked: true, date: new Date(), data } })
     console.log(`Processed. Remaining: ${this.queue.length}`)
     setTimeout(() => {
       this.queueRoutine()
@@ -174,7 +176,7 @@ class SourceCheckerManager {
     return combinedData
   }
 
-  async checkFor(id) {
+  async checkFor(id, checkApproved = false) {
     try {
       let data = await this.db.collection("sourceChecker").findOne({ _id: parseInt(id) })
 
@@ -185,12 +187,12 @@ class SourceCheckerManager {
 
       if (!data || !data.data) {
         if (!post) return { notIndexed: true, notPending: true }
-        if (!post.isPending) return { notPending: true }
+        if (!post.isPending && !checkApproved) return { notPending: true }
         if (post.isDeleted || post.sources.length == 0 || supportedSources.length == 0) return { unsupported: true }
 
         let index = -1
         if ((index = this.queue.findIndex(p => p._id == id)) == -1) {
-          await this.queuePosts([post])
+          await this.queuePosts([post], checkApproved)
         }
 
         return { queued: true }
@@ -199,11 +201,76 @@ class SourceCheckerManager {
       if (post && supportedSources.some(s => !data.data[s])) {
         let index = -1
         if ((index = this.queue.findIndex(p => p._id == id)) == -1) {
-          await this.queuePosts([post])
+          await this.queuePosts([post], checkApproved)
         }
       }
 
       return data.data
+    } catch (e) {
+      console.error(e)
+      return {}
+    }
+  }
+
+  async checkBulk(ids, checkApproved = false) {
+    try {
+      ids = ids.map(id => parseInt(id))
+      let allData = await this.db.collection("sourceChecker").find({ _id: { $in: ids } }).toArray()
+
+      let posts = await this.utils.getPostsWithIds(ids)
+
+      let returnData = []
+
+      let toQueue = []
+
+      for (let post of posts) {
+        let supportedSources = this.getSupportedSources(post)
+
+        ids.splice(ids.indexOf(post.id), 1)
+
+        let data = allData.find(d => d._id == post.id)
+
+        if (!data || !data.data) {
+          if (!post.isPending && !checkApproved) {
+            returnData.push({ id: post.id, notPending: true })
+            continue
+          }
+
+          if (post.isDeleted || post.sources.length == 0 || supportedSources.length == 0) {
+            returnData.push({ id: post.id, unsupported: true })
+            continue
+          }
+
+          let index = -1
+          if ((index = this.queue.findIndex(p => p._id == id)) == -1) {
+            toQueue.push(post)
+          }
+
+          returnData.push({ id: post.id, queued: true })
+          continue
+        }
+
+        if (supportedSources.some(s => !data.data[s])) {
+          let index = -1
+          if ((index = this.queue.findIndex(p => p._id == id)) == -1) {
+            toQueue.push(post)
+            returnData.push({ id: post.id, queued: true })
+            continue
+          }
+        }
+
+        returnData.push({ id: post.id, sources: data.data })
+      }
+
+      if (toQueue.length > 0) {
+        await this.queuePosts(toQueue, checkApproved)
+      }
+
+      for (let id of ids) {
+        returnData.push({ id, notIndexed: true, notPending: true })
+      }
+
+      return returnData
     } catch (e) {
       console.error(e)
       return {}
