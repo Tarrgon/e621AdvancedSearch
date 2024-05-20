@@ -119,6 +119,8 @@ const META_TAGS_TO_FIELD_NAMES = {
   inancestor: "inAncestor",
   indescendant: "inDescendant",
 
+  uploaderverified: "uploaderVerified",
+
   hasmd5match: "hasMD5Match",
   hasdimensionmatch: "hasDimensionMatch",
   hasfiletypematch: "hasFileTypeMatch",
@@ -139,6 +141,8 @@ const META_TAGS = ["order", "user", "approver", "id", "score", "favcount", "favo
   "gentags", "arttags", "chartags", "copytags", "spectags", "invtags", "lortags", "loretags", "metatags", "rating", "type",
   "width", "height", "mpixels", "megapixels", "ratio", "filesize", "status", "date", "source", "ischild", "isparent", "parent", "hassource",
   "ratinglocked", "notelocked", "md5", "duration", "inparent", "inchild", "inancestor", "indescendant", "randseed", "rankdate",
+
+  "uploaderverified",
 
   "hasmd5match", "hasdimensionmatch", "hasfiletypematch", "haspbvas"
 ]
@@ -332,6 +336,8 @@ class Utilities {
     if (needExports) {
       await this.fetchAndApplyDatabaseExports()
 
+      await this.updateAllArtists()
+
       // Every sunday at 5, get new exports. This ensures we didn't miss anything and allows us to update score, favortie count, and comment count.
       // At the current time, this takes between 15-30 minutes. Updates can't be processed while db exports are being processed.
       cron.schedule(`0 ${new Date(36000000).getHours()} * * 0`, () => {
@@ -424,6 +430,16 @@ class Utilities {
       }
 
       console.log("Tag implications updated")
+
+      if (await this.requester.updateArtists() === false) {
+        setTimeout(() => {
+          this.currentlyUpdating = false
+          this.updateAll()
+        }, 20000)
+        return
+      }
+
+      console.log("Artists updated")
 
       console.log(`Update complete. Took ${Date.now() - t}ms`)
     } catch (e) {
@@ -589,6 +605,70 @@ class Utilities {
     }
 
     if (tags.length > 0) await update(tags)
+  }
+
+  async addArtist(artist) {
+    return await this.mongoDatabase.collection("artists").insertOne(artist)
+  }
+
+  async updateArtist(artist) {
+    return await this.mongoDatabase.collection("artists").replaceOne({ _id: artist._id }, artist)
+  }
+
+  async getArtist(id) {
+    return await this.mongoDatabase.collection("artists").findOne({ _id: id })
+  }
+
+  async getArtistsLinkedTo(id) {
+    return await this.mongoDatabase.collection("artists").find({ linked_user_id: id }).toArray()
+  }
+
+  async updateAllArtists() {
+    console.log("Updating all artists")
+    let update = async (artists) => {
+      let now = Date.now()
+
+      console.log("Batching 5000 artist updates")
+
+      let cursor = this.getArtistsWithIds(artists.map(a => a._id))
+
+      let bulk = this.mongoDatabase.collection("artists").initializeUnorderedBulkOp()
+
+      for await (let artist of cursor) {
+        let index = artists.findIndex(a => a._id == artist._id)
+        if (index == -1) continue
+
+        let newArtist = artists.splice(index, 1)[0]
+
+        bulk.find({ _id: artist._id }).replaceOne(newArtist)
+      }
+
+      for (let artist of artists) {
+        bulk.insert(artist)
+      }
+
+      await bulk.execute()
+
+      console.log(`Operation took ${Date.now() - now}ms`)
+    }
+
+    let artists = []
+
+    for await (let batch of this.requester.fetchAllArtists()) {
+      if (artists.length >= 5000) {
+        await update(artists)
+
+        artists.length = 0
+      }
+
+      artists.push(...batch)
+    }
+
+    if (artists.length > 0) await update(artists)
+  }
+
+  getArtistsWithIds(ids) {
+    return this.mongoDatabase.collection("artists").find({ _id: { $in: ids } })
   }
 
   async countNonImplicatedTags(tags, tagsAsArray) {
@@ -2523,6 +2603,25 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
         //     }
         //   }
 
+        case "uploaderVerified": {
+          return {
+            customFilter: true,
+            setup: async (posts) => {
+              let allUploaderIds = posts.map(p => p.uploaderId)
+              let allLinks = await this.mongoDatabase.collection("artists").find({ linked_user_id: { $in: allUploaderIds } }).toArray()
+              
+              return allLinks
+            },
+            filter: async (post, setupData) => {
+              let linkedArtists = setupData.filter(a => a.linked_user_id == post.uploaderId)
+              if (linkedArtists.length == 0) return value == "false"
+
+              if (value == "true") return linkedArtists.some(a => post.tags[TAG_CATEGORIES_TO_CATEGORY_ID.artist].includes(a.name))
+              else return !linkedArtists.some(a => post.tags[TAG_CATEGORIES_TO_CATEGORY_ID.artist].includes(a.name))
+            }
+          }
+        }
+
         case "hasMD5Match": {
           return {
             customFilter: true,
@@ -2623,7 +2722,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
         let parsedMetaTag = this.metaTagParser(token, tokenizer)
         if (parsedMetaTag) {
           if (parsedMetaTag.customFilter) {
-            group.customFilters.push(parsedMetaTag.filter)
+            group.customFilters.push(parsedMetaTag)
           } else if (parsedMetaTag.isOrderTag) {
             if (parsedMetaTag.random) {
               group.orderTags.push({ random: true })
@@ -3007,13 +3106,19 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
 
       if (res.hits.hits.length > 0) response.searchAfter = res.hits.hits[res.hits.hits.length - 1].sort
 
-      if (group.customFilters.length > 0) {
+      if (group && group.customFilters.length > 0) {
         let filtered = []
+
+        let setupData = new Map()
+
+        for (let customFilter of group.customFilters) {
+          if (customFilter.setup) setupData.set(customFilter, await customFilter.setup(posts))
+        }
 
         for (let post of posts) {
           let passed = true
           for (let customFilter of group.customFilters) {
-            if (!await customFilter(post)) {
+            if (!await customFilter.filter(post, setupData.get(customFilter))) {
               passed = false
               break
             }

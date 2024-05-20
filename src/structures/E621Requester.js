@@ -533,6 +533,106 @@ class E621Requester {
     }
   }
 
+  async updateArtists(page = 1, endPageWithNoUpdates = 5) {
+    try {
+      let data = await this.addUrlToQueue(`artists.json?search%5Border%5D=updated_at&limit=100&page=${page}`)
+
+      let anyUpdated = page < endPageWithNoUpdates
+
+      if (!data || !data[0]) return
+
+      for (let artist of data) {
+        let existingArtist = await this.utilities.getArtist(artist.id)
+
+        if (existingArtist && existingArtist.updatedAt >= new Date(artist.updated_at)) {
+          continue
+        }
+
+        artist._id = artist.id
+        delete artist.id
+
+        artist.updatedAt = new Date(artist.updated_at)
+        delete artist.updated_at
+
+        artist.createdAt = new Date(artist.created_at)
+        delete artist.created_at
+
+        for (let i = 0; i < artist.urls.length; i++) {
+          artist.urls[i].updatedAt = new Date(artist.urls[i].updated_at)
+          delete artist.urls[i].updated_at
+
+          artist.urls[i].createdAt = new Date(artist.urls[i].created_at)
+          delete artist.urls[i].created_at
+        }
+
+        if (!existingArtist) {
+          anyUpdated = true
+          await this.utilities.addArtist(artist)
+        } else {
+          anyUpdated = true
+          await this.utilities.updateArtist(artist)
+        }
+      }
+
+      if (anyUpdated && page < 750) await this.updateArtists(++page)
+    } catch (e) {
+      console.error(e)
+
+      if (e.e621Moment == true || e.code == 500) {
+        return false
+      }
+    }
+  }
+
+  async fetchArtistsAfter(id) {
+    try {
+      let data = await this.addUrlToQueue(`artists.json?limit=320${id ? `&page=b${id}` : ""}`)
+      let artists = []
+
+      if (data && data[0]) {
+        for (let artist of data) {
+          artist._id = artist.id
+          delete artist.id
+
+          artist.updatedAt = new Date(artist.updated_at)
+          delete artist.updated_at
+
+          artist.createdAt = new Date(artist.created_at)
+          delete artist.created_at
+
+          for (let i = 0; i < artist.urls.length; i++) {
+            artist.urls[i].updatedAt = new Date(artist.urls[i].updated_at)
+            delete artist.urls[i].updated_at
+
+            artist.urls[i].createdAt = new Date(artist.urls[i].created_at)
+            delete artist.urls[i].created_at
+          }
+
+          artists.push(artist)
+        }
+      }
+
+      return artists
+    } catch (e) {
+      console.error(e)
+    }
+
+    return []
+  }
+
+  async* fetchAllArtists() {
+    let lastId = null
+    while (true) {
+      console.log(`Last id: ${lastId}`)
+      let artists = await this.fetchArtistsAfter(lastId)
+      if (artists.length == 0) {
+        break
+      }
+      yield artists;
+      lastId = artists[artists.length - 1]._id
+    }
+  }
+
   getDatabaseExport(exportName) {
     return new Promise(async (resolve, reject) => {
       if (fs.existsSync(`./${exportName.slice(0, -3)}`))
