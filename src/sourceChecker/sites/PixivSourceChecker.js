@@ -53,6 +53,19 @@ class PixivSourceChecker extends SourceChecker {
 
       await page.waitForNetworkIdle()
 
+      let clicked = await page.evaluate(() => {
+        for (let button of document.querySelectorAll("button[type='button']")) {
+          if (button.innerText == "Show all") {
+            button.click()
+            return true
+          }
+        }
+
+        return false
+      })
+
+      if (clicked) await page.waitForNetworkIdle()
+
       let images = await page.evaluate(() => {
         return Array.from(document.querySelectorAll("a[href*='i.pximg.net']")).map(e => ({ original: e.href, preview: e.firstElementChild.src }))
       })
