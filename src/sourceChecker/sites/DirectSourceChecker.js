@@ -36,6 +36,7 @@ class DirectSourceChecker extends SourceChecker {
       /.*:\/\/.*sofurryfiles\.com\/.*\?page=(\d+).*/,
       /.*:\/\/img\.pawoo\.net\/.*\.(png|jpg|jpeg|gif|webm).*/,
       /.*:\/\/pawb\.fun\/system\/media_attachments\/files\/.*\.(png|jpg|jpeg|gif|webm).*/,
+      /.*:\/\/files\.mastodon\.social\/media_attachments\/files\/.*\.(png|jpg|jpeg|gif|webm).*/,
     ]
   }
 

@@ -3016,7 +3016,7 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
     return res.trim()
   }
 
-  async performSearch(query, limit = 50, searchAfter = null, reverse = false) {
+  async performSearch(query, limit = 50, searchAfter = null, reverse = false, excludeIds = [], excludeMd5s = []) {
     try {
       let success, group
 
@@ -3143,6 +3143,16 @@ for (int i = 0; i < ctx._source.tags.size(); i++) {
         for (let [key, order] of Object.entries(req.sort)) {
           req.sort[key] = order == "asc" ? "desc" : "asc"
         }
+      }
+
+      if (excludeIds.length > 0) {
+        if (req.query.bool.must_not) req.query.bool.must_not.push({ ids: { values: excludeIds } })
+        else req.query.bool.must_not = [{ ids: { values: excludeIds } }]
+      }
+
+      if (excludeMd5s.length > 0) {
+        if (req.query.bool.must_not) req.query.bool.must_not.push({ terms: { md5: excludeMd5s } })
+        else req.query.bool.must_not = [{ terms: { md5: excludeMd5s } }]
       }
 
       let res = await this.database.search(req)

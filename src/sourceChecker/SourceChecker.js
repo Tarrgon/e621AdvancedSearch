@@ -298,9 +298,8 @@ class SourceChecker {
       puppeteer.launch({ headless: true, args: ["--no-sandbox"] }).then((browser) => {
         this.browser = browser
         if (!requiresPuppetSetup) this.puppetReady = true
+        else this.puppetSetup()
       })
-
-      if (requiresPuppetSetup) this.puppetSetup()
     }
   }
 

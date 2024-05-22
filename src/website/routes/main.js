@@ -4,14 +4,24 @@ const router = express.Router()
 let utils = null
 
 async function handlePostSearch(req, res) {
-  let { query, q, limit, page, reverse } = (req.query || {})
+  let { query, q, limit, page, reverse, excludeids: excludeIds, excludemd5s: excludeMd5s } = (req.query || {})
   if (query) query = decodeURIComponent(query)
   if (q) q = decodeURIComponent(q)
+  if (excludeIds) excludeIds = excludeIds.split(",").filter(id => !isNaN(id))
+  if (excludeMd5s) excludeMd5s = excludeMd5s.split(",")
   
   let { searchAfter } = (req.body || {})
 
   if (!query && !q && req.body.query) {
     query = req.body.query
+  }
+
+  if (!excludeIds && req.body.excludeIds) {
+    excludeIds = req.body.excludeIds.filter(id => !isNaN(id)).map(id => id.toString())
+  }
+
+  if (!excludeMd5s && req.body.excludeMd5s) {
+    excludeMd5s = req.body.excludeMd5s
   }
 
   if (limit != null && !isNaN(limit)) {
@@ -29,7 +39,7 @@ async function handlePostSearch(req, res) {
   }
 
   try {
-    let result = await utils.performSearch(query ? query : q, limit ? limit : 50, searchAfter ? searchAfter : parseInt(page), reverse)
+    let result = await utils.performSearch(query ? query : q, limit ? limit : 50, searchAfter ? searchAfter : parseInt(page), reverse, excludeIds || [], excludeMd5s || [])
     // console.log(JSON.stringify(result))
 
     if (result.status) {

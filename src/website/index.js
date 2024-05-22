@@ -32,7 +32,7 @@ module.exports = async () => {
 
     app.set("trust proxy", 1)
 
-    app.use(bodyParser.json())
+    app.use(bodyParser.json({ limit: "50mb" }))
     app.use(cors())
 
     // routers

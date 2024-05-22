@@ -13,7 +13,8 @@ class MastodonSourceChecker extends SourceChecker {
     this.SUPPORTED = [
       /.*:\/\/pawoo\.net\/@.*\/(\d+).*/,
       /.*:\/\/pawb\.fun\/@.*\/(\d+).*/,
-      /.*:\/\/baraag\.net\/@.*\/(\d+).*/
+      /.*:\/\/baraag\.net\/@.*\/(\d+).*/,
+      /.*:\/\/mastodon\.social\/@.*\/(\d+).*/
     ]
 
   }
