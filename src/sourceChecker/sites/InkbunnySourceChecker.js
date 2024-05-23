@@ -17,8 +17,8 @@ class InkbunnySourceChecker extends SourceChecker {
     this.setup()
 
     this.SUPPORTED = [
-      /.*:\/\/inkbunny\.net\/s\/(\d+).*/,
-      /.*:\/\/inkbunny\.net\/submissionview\.php\?.*id=(\d+).*/,
+      /^https?:\/\/inkbunny\.net\/s\/(\d+).*/,
+      /^https?:\/\/inkbunny\.net\/submissionview\.php\?.*id=(\d+).*/,
     ]
   }
 

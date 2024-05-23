@@ -23,7 +23,7 @@ class TwitterChecker extends SourceChecker {
       this.ready = true
     })
 
-    this.SUPPORTED = [/.*:\/\/.*\.?(x|twitter)\.com\/.*\/status\/(\d+).*/]
+    this.SUPPORTED = [/^https?:\/\/.*\.?(x|twitter)\.com\/.*\/status\/(\d+).*/]
   }
 
   supportsSource(source) {
@@ -35,7 +35,7 @@ class TwitterChecker extends SourceChecker {
   }
 
   async _internalProcessPost(post, source) {
-    let data = (/.*:\/\/.*\.?(x|twitter)\.com\/.*\/status\/(\d+).*/).exec(source)
+    let data = (/^https?:\/\/.*\.?(x|twitter)\.com\/.*\/status\/(\d+).*/).exec(source)
 
     let id = data[2]
 

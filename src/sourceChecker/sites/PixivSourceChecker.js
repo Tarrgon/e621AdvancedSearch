@@ -10,7 +10,7 @@ class PixivSourceChecker extends SourceChecker {
   constructor() {
     super(true, true)
 
-    this.SUPPORTED = [/.*:\/\/.*pixiv\.net\/.*artworks\/(\d+).*/]
+    this.SUPPORTED = [/^https?:\/\/.*pixiv\.net\/.*artworks\/(\d+).*/]
   }
 
   async login() {

@@ -1,5 +1,6 @@
 const sizeOf = require("buffer-image-size")
 const DetectFileType = require("./DetectFileType")
+const jsmd5 = require("js-md5")
 
 class NotImplementedError extends Error {
   constructor() {
@@ -309,6 +310,48 @@ class SourceChecker {
     } catch (e) {
       if (e instanceof puppeteer.TimeoutError) return null
       else throw e
+    }
+  }
+
+  async _processDirectLink(post, source) {
+    try {
+      let res = await fetch(source)
+      let blob = await res.blob()
+      let arrayBuffer = await blob.arrayBuffer()
+
+      let md5 = jsmd5(arrayBuffer)
+
+      let dimensions = await this.getDimensions(blob.type, arrayBuffer)
+
+      let realFileType = await this.getRealFileType(arrayBuffer)
+
+      if (!realFileType) {
+        return {
+          unsupported: true,
+          md5Match: false,
+          dimensionMatch: false,
+          fileTypeMatch: false
+        }
+      }
+
+      return {
+        md5Match: md5 == post.md5,
+        dimensionMatch: dimensions.width == post.width && dimensions.height == post.height,
+        fileTypeMatch: realFileType == post.fileType,
+        fileType: realFileType,
+        dimensions
+      }
+    } catch (e) {
+      console.error(`Error with: ${source} (${post._id})`)
+      console.error(e)
+    }
+
+    return {
+      unknown: true,
+      error: true,
+      md5Match: false,
+      dimensionMatch: false,
+      fileTypeMatch: false
     }
   }
 

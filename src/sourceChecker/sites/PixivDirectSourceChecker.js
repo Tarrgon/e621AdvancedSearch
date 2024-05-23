@@ -6,7 +6,7 @@ class PixivDirectSourceChecker extends SourceChecker {
     super()
 
     this.SUPPORTED = [
-      new RegExp(".*:\/\/i\.pximg\.net\/.*\.(png|jpg|jpeg|gif).*"),
+      new RegExp("https?:\/\/i\.pximg\.net\/.*\.(png|jpg|jpeg|gif).*"),
     ]
   }
 

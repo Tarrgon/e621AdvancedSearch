@@ -8,7 +8,7 @@ class FurAffinityChecker extends SourceChecker {
   constructor() {
     super()
 
-    this.SUPPORTED = [/.*:\/\/.*furaffinity\.net\/view\/(\d+).*/]
+    this.SUPPORTED = [/^https?:\/\/.*furaffinity\.net\/view\/(\d+).*/]
   }
 
   supportsSource(source) {
@@ -19,50 +19,8 @@ class FurAffinityChecker extends SourceChecker {
     return false
   }
 
-  async _processDirectLink(post, source) {
-    try {
-      let res = await fetch(source)
-      let blob = await res.blob()
-      let arrayBuffer = await blob.arrayBuffer()
-
-      let md5 = jsmd5(arrayBuffer)
-
-      let dimensions = await super.getDimensions(blob.type, arrayBuffer)
-
-      let realFileType = await this.getRealFileType(arrayBuffer)
-
-      if (!realFileType) {
-        return {
-          unsupported: true,
-          md5Match: false,
-          dimensionMatch: false,
-          fileTypeMatch: false
-        }
-      }
-
-      return {
-        md5Match: md5 == post.md5,
-        dimensionMatch: dimensions.width == post.width && dimensions.height == post.height,
-        fileTypeMatch: realFileType == post.fileType,
-        fileType: realFileType,
-        dimensions
-      }
-    } catch (e) {
-      console.error(post._id, source)
-      console.error(e)
-    }
-
-    return {
-      unknown: true,
-      error: true,
-      md5Match: false,
-      dimensionMatch: false,
-      fileTypeMatch: false
-    }
-  }
-
   async _internalProcessPost(post, source) {
-    let data = (/.*:\/\/.*furaffinity\.net\/view\/(\d+).*/).exec(source)
+    let data = (/^https?:\/\/.*furaffinity\.net\/view\/(\d+).*/).exec(source)
 
     let id = data[1]
 

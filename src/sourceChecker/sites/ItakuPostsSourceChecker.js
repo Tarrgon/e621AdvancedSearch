@@ -7,9 +7,12 @@ function wait(ms) {
 
 class ItakuPostsSourceChecker extends SourceChecker {
   constructor() {
-    super(true, false)
+    super()
 
-    this.SUPPORTED = [/.*:\/\/itaku\.ee\/posts\/(\d+).*/]
+    this.SUPPORTED = [
+      /^https?:\/\/itaku\.ee\/posts\/(\d+).*/,
+      /^https?:\/\/itaku\.ee\/images\/(\d+).*/,
+    ]
   }
 
   supportsSource(source) {
@@ -21,90 +24,46 @@ class ItakuPostsSourceChecker extends SourceChecker {
   }
 
   async _internalProcessPost(post, source) {
-    let page
     try {
-      page = await this.browser.newPage()
-      await page.goto(source)
-
-      let a = await this.waitForSelectorOrNull(page, "a[href^='https://itaku.ee/api']", 1500)
-      if (!a) {
-        let reveal = await this.waitForSelectorOrNull(page, ".gallery-item-container", 1500)
-        if (reveal) {
-          await reveal.evaluate(b => b.click())
-          a = await this.waitForSelectorOrNull(page, "a[href^='https://itaku.ee/api']", 1500)
-          if (!a) {
-            let confirm = await this.waitForSelectorOrNull(page, ".mat-focus-indicator.mat-flat-button.mat-button-base.mat-warn", 1500)
-            if (confirm) {
-              await confirm.evaluate(b => b.click())
-              a = await this.waitForSelectorOrNull(page, "a[href^='https://itaku.ee/api']", 1500)
-              if (!a) {
-                return {
-                  error: true,
-                  unknown: true,
-                  md5Match: false,
-                  dimensionMatch: false,
-                  fileTypeMatch: false
-                }
-              }
-            } else {
-              return {
-                error: true,
-                unknown: true,
-                md5Match: false,
-                dimensionMatch: false,
-                fileTypeMatch: false
-              }
-            }
-          }
-        } else {
-          return {
-            error: true,
-            unknown: true,
-            md5Match: false,
-            dimensionMatch: false,
-            fileTypeMatch: false
-          }
-        }
-      }
-
-      let href = await a.evaluate(ele => ele.href)
-
-      if (!href) {
+      let id = this.SUPPORTED.map(r => r.exec(source)?.[1]).filter(id => id)[0]
+      if (!id) {
+        console.error(`Could not find ID for: ${source} (${post._id})`)
         return {
-          error: true,
           unknown: true,
+          error: true,
           md5Match: false,
           dimensionMatch: false,
           fileTypeMatch: false
         }
       }
 
-      let res = await fetch(href)
-      let blob = await res.blob()
-      let arrayBuffer = await blob.arrayBuffer()
+      let res = await fetch(`https://itaku.ee/api/galleries/images/?ids=${id}&format=json`)
 
-      let md5 = jsmd5(arrayBuffer)
-
-      let dimensions = await super.getDimensions(blob.type, arrayBuffer)
-
-      let realFileType = await this.getRealFileType(arrayBuffer)
-
-      if (!realFileType) {
+      if (!res.ok) {
+        console.error(`Error with (${res.status}): ${source} (${post._id})`)
         return {
-          unsupported: true,
+          unknown: true,
+          error: true,
           md5Match: false,
           dimensionMatch: false,
           fileTypeMatch: false
         }
       }
 
-      return {
-        md5Match: md5 == post.md5,
-        dimensionMatch: dimensions.width == post.width && dimensions.height == post.height,
-        fileTypeMatch: realFileType == post.fileType,
-        fileType: realFileType,
-        dimensions
+      let data = (await res.json()).results?.[0]
+
+      if (!data) {
+        console.error(`Error with (no data): ${source} (${post._id})`)
+        return {
+          unknown: true,
+          error: true,
+          md5Match: false,
+          dimensionMatch: false,
+          fileTypeMatch: false
+        }
       }
+
+      return await this._processDirectLink(post, data.image)
     } catch (e) {
       console.error(post._id, source)
       console.error(e)
@@ -122,10 +81,6 @@ class ItakuPostsSourceChecker extends SourceChecker {
   }
 
   async processPost(post, current) {
-    while (!this.puppetReady) {
-      await wait(500)
-    }
-
     let data = {}
     for (let source of post.sources) {
       if (current?.data?.[source]) continue
