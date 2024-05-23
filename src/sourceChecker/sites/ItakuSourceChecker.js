@@ -67,8 +67,6 @@ class ItakuPostsSourceChecker extends SourceChecker {
     } catch (e) {
       console.error(post._id, source)
       console.error(e)
-    } finally {
-      await page.close()
     }
 
     return {
